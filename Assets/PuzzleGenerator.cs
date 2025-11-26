@@ -7,7 +7,7 @@ public enum TileType{
     Dropoff,    // D
     Obstacle,   // O
     Start,      // S
-    End         // E
+    End         // ▪ E
 }
 
 public class PuzzleGenerator : MonoBehaviour{
@@ -40,18 +40,11 @@ public class PuzzleGenerator : MonoBehaviour{
         int rows = map.GetLength(0);
         int cols = map.GetLength(1);
 
-        int newRows = rows + 2;
-        int newCols = cols + 2;
-
-        for(int y = 0; y < newRows; y++){
-            for(int x = 0; x < newCols; x++){
+        for(int y = 0; y < rows; y++){
+            for(int x = 0; x < cols; x++){
                 GameObject prefab;
-                if (y == 0 || y == newRows - 1 || x == 0 || x == newCols - 1) {
-                    prefab = obstaclePrefab;
-                } else {
-                    TileType type = map[y - 1, x - 1];
-                    prefab = GetPrefab(type);
-                }
+                TileType type = map[y, x];
+                prefab = GetPrefab(type);
 
                 if(prefab == null){
                     Debug.LogWarning($"No prefab for TileType at [{y},{x}]");

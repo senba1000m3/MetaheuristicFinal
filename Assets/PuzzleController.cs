@@ -1,53 +1,79 @@
 using UnityEngine;
+using System.Collections;
 using System.IO;
 
-public class PuzzleController : MonoBehaviour{
-
+public class PuzzleController : MonoBehaviour
+{
     public PuzzleGenerator generator;
-    public int size = 5;
+    public int mazeSize = 9;
+    public float intervalSeconds = 5f; // 每隔幾秒生成一次
 
     private string savePath;
 
-    void Start(){
-        savePath = Path.Combine(Application.dataPath, "random_map.csv");
-
-        char[,] randomMap = GenerateRandomMap(size);
-        SaveMapToCSV(randomMap, savePath);
-
-        char[,] loadedMap = LoadMapFromCSV(savePath);
-
-        generator.GenerateFromCharArray(loadedMap);
+    void Start()
+    {
+        savePath = Path.Combine(Application.dataPath, "maze_records.csv");
+        StartCoroutine(GenerateLoop());
     }
 
-    char[,] GenerateRandomMap(int size){
-        char[,] map = new char[size, size];
+    IEnumerator GenerateLoop()
+    {
+        while (true)
+        {
+            // 假設玩家互動數據，可隨機或從實際遊玩取得
+            PlayerModel player = new PlayerModel(
+                attempts: Random.Range(1, 5),
+                backtracks: Random.Range(0, 3),
+                nearSolves: Random.Range(0, 3),
+                resets: Random.Range(0, 3),
+                timeTaken: Random.Range(5f, 60f)
+            );
 
-        char[] tiles = { '#', 'X', 'P', 'D', 'O', 'S', 'E' };
+            // GA 生成迷宮
+            GAEngine ga = new GAEngine(player)
+            {
+                populationSize = 30,
+                generations = 15,
+                mutationRate = 0.1f,
+                mazeSize = mazeSize+2
+            };
 
-        for(int y = 0; y < size; y++){
-            for(int x = 0; x < size; x++){
-                map[y, x] = tiles[Random.Range(0, tiles.Length)];
-            }
+            char[,] bestMaze = ga.Run();
+
+            // 生成 Prefab
+            generator.GenerateFromCharArray(bestMaze);
+
+            // 存 CSV
+            SaveMazeToCSV(bestMaze, player);
+
+            Debug.Log("Generated maze and saved CSV.");
+
+            yield return new WaitForSeconds(intervalSeconds);
         }
-
-        return map;
     }
 
-    void SaveMapToCSV(char[,] map, string path){
-        int size = map.GetLength(0);
+    void SaveMazeToCSV(char[,] maze, PlayerModel player)
+    {
+        int rows = maze.GetLength(0);
+        int cols = maze.GetLength(1);
 
-        using(StreamWriter writer = new StreamWriter(path)){
-            for(int y = 0; y < size; y++){
+        using (StreamWriter writer = new StreamWriter(savePath, true)) // append
+        {
+            writer.WriteLine($"#PlayerData: Attempts={player.attempts}, Backtracks={player.backtracks}, NearSolves={player.nearSolves}, Resets={player.resets}, TimeTaken={player.timeTaken}, SuggestedDifficulty={player.SuggestDifficulty(5)}");
+
+            for (int y = 0; y < rows; y++)
+            {
                 string line = "";
-                for(int x = 0; x < size; x++){
-                    line += map[y, x];
-                    if(x < size - 1) line += ",";
+                for (int x = 0; x < cols; x++)
+                {
+                    line += maze[y, x];
+                    if (x < cols - 1) line += ",";
                 }
                 writer.WriteLine(line);
             }
-        }
 
-        Debug.Log("Map saved to: " + path);
+            writer.WriteLine(); // 空行分隔紀錄
+        }
     }
 
     char[,] LoadMapFromCSV(string path){
@@ -57,13 +83,10 @@ public class PuzzleController : MonoBehaviour{
 
         for(int y = 0; y < size; y++){
             string[] cells = lines[y].Split(',');
-
             for(int x = 0; x < size; x++){
                 map[y, x] = cells[x][0];
             }
         }
-
-        Debug.Log("Map loaded from CSV.");
 
         return map;
     }

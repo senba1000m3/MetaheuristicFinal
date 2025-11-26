@@ -1,0 +1,39 @@
+#PlayerData: Attempts=1, Backtracks=1, NearSolves=1, Resets=0, TimeTaken=6.776893, SuggestedDifficulty=6
+O,O,O,O,O,O,O,O,O,O,O
+O,X,O,P,X,P,D,P,X,X,O
+O,X,O,O,O,X,O,X,O,D,O
+O,D,X,D,X,X,X,X,O,P,O
+O,X,D,O,O,O,D,X,P,D,O
+O,D,X,X,X,X,O,P,X,D,O
+O,D,O,O,X,X,D,O,P,X,O
+O,X,X,X,O,P,O,D,P,X,O
+O,D,P,X,O,X,O,X,O,O,O
+O,X,X,D,O,X,X,D,X,X,O
+O,O,O,O,O,O,O,O,O,O,O
+
+#PlayerData: Attempts=2, Backtracks=0, NearSolves=1, Resets=1, TimeTaken=34.94725, SuggestedDifficulty=5
+O,O,O,O,O,O,O,O,O,O,O
+O,X,P,D,X,P,D,P,X,D,O
+O,P,X,P,D,X,P,X,P,P,O
+O,X,O,P,X,X,O,X,P,X,O
+O,X,O,O,P,O,O,P,X,D,O
+O,X,P,P,P,D,P,X,X,X,O
+O,X,P,O,D,P,P,D,P,X,O
+O,D,O,X,P,D,P,X,X,X,O
+O,P,D,D,P,P,O,O,P,D,O
+O,X,D,D,P,X,X,X,D,D,O
+O,O,O,O,O,O,O,O,O,O,O
+
+#PlayerData: Attempts=4, Backtracks=1, NearSolves=2, Resets=2, TimeTaken=13.78106, SuggestedDifficulty=5
+O,O,O,O,O,O,O,O,O,O,O
+O,X,X,P,P,X,X,D,X,P,O
+O,P,O,P,D,D,O,D,P,D,O
+O,D,D,D,X,D,X,P,O,X,O
+O,D,P,X,P,X,D,P,P,P,O
+O,X,D,P,P,X,P,P,P,P,O
+O,X,D,D,P,D,X,X,D,X,O
+O,X,P,P,X,P,P,P,O,X,O
+O,P,P,X,D,D,O,X,P,D,O
+O,X,X,P,D,X,P,D,X,X,O
+O,O,O,O,O,O,O,O,O,O,O
+

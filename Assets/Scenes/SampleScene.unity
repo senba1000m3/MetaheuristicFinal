@@ -173,7 +173,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   generator: {fileID: 125109944}
-  size: 5
+  size: 6
 --- !u!4 &125109946
 Transform:
   m_ObjectHideFlags: 0
