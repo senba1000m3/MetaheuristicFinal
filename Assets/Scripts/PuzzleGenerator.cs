@@ -7,7 +7,7 @@ public enum TileType{
     Dropoff,    // D
     Obstacle,   // O
     Start,      // S
-    End         // ▪ E
+    End         // E
 }
 
 public class PuzzleGenerator : MonoBehaviour{

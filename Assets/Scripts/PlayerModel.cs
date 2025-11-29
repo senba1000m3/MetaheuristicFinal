@@ -33,10 +33,6 @@ public class PlayerModel {
         this.timeTaken = timeTaken;
     }
 
-    public bool CanIncreaseDifficulty(int maxAttempts){
-        return attempts <= maxAttempts;
-    }
-
     public float CalculateSoftConstraintScore(){
         int B = backtracks - 1;
         float Ss = 0f;
@@ -65,18 +61,19 @@ public class PlayerModel {
     }
 
     public int SuggestDifficulty(int currentDifficulty){
-        if(!CanIncreaseDifficulty(5)){
+        int maxAttempts = 5;
+        if (attempts > maxAttempts) {
             return Mathf.Max(1, currentDifficulty - 1);
         }
 
+        // Soft Constraint: 根據分數調整
         float Ss = CalculateSoftConstraintScore();
-
-        if(Ss > 5){
+        if (Ss > 5) {
             return Mathf.Min(10, currentDifficulty + 1);
-        } else if(Ss < -5){
+        }
+        else if (Ss < -5) {
             return Mathf.Max(1, currentDifficulty - 1);
         }
-
         return currentDifficulty;
     }
 }

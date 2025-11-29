@@ -1,12 +1,13 @@
 using UnityEngine; 
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 
 public class PuzzleController : MonoBehaviour
 {
     public PuzzleGenerator generator;
     public ResultPanelController resultPanel;
-    public int mazeSize = 10;
+    public int mapSize = 10;
     public float intervalSeconds = 5f;
     public int T = 100;
 
@@ -27,11 +28,11 @@ public class PuzzleController : MonoBehaviour
             new ExpertAgent()
         };
 
-        Debug.Log("Initializing MazeGenerator in PuzzleController...");
+        Debug.Log("Initializing MapGenerator in PuzzleController...");
 
         mapGenerator = new MapGenerator();
 
-        Debug.Log($"PuzzleController Start: mazeSize={mazeSize}, intervalSeconds={intervalSeconds}, T={T}");
+        Debug.Log($"PuzzleController Start: mapSize={mapSize}, intervalSeconds={intervalSeconds}, T={T}");
         Debug.Log($"Agents count: {agents.Length}");
 
         agentDifficulties = new int[agents.Length];
@@ -43,69 +44,88 @@ public class PuzzleController : MonoBehaviour
 
     IEnumerator GenerateLoop()
     {
+        // 準備初始地圖
+        char[][,] currentMaps = new char[agents.Length][,];
+        for (int i = 0; i < agents.Length; i++) {
+            currentMaps[i] = mapGenerator.GenerateMap(mapSize);
+        }
+
         while (t < T)
         {
             foreach (var obj in GameObject.FindObjectsOfType<GameObject>()) {
                 if (obj.name.StartsWith("PuzzleRoot")) {
-                    DestroyImmediate(obj);
+                    Destroy(obj);
                 }
             }
 
-            char[][,] mazes = new char[agents.Length][,];
-            PlayerModel[] models = new PlayerModel[agents.Length];
-
-            // 每個 agent 用自己的難度生成迷宮並模擬
             for (int i = 0; i < agents.Length; i++) {
-                var targets = PlayerModel.MapDifficultyToTargets(agentDifficulties[i]);
-                mazes[i] = mapGenerator.GenerateMap(mazeSize, targets);
-                Debug.Log($"Agent {i} maze generated (difficulty={agentDifficulties[i]}, targets={string.Join(", ", targets)})");
-                models[i] = agents[i].Simulate(mazes[i]);
-                Debug.Log($"Simulation done: Attempts={models[i].attempts}, Backtracks={models[i].backtracks}, NearSolves={models[i].nearSolves}, Resets={models[i].resets}, TimeTaken={models[i].timeTaken}");
-                if (resultPanel != null) {
-                    string result = $"Difficulty: {agentDifficulties[i]}\nAttempts: {models[i].attempts}\nBacktracks: {models[i].backtracks}\nNearSolves: {models[i].nearSolves}\nResets: {models[i].resets}\nTimeTaken: {models[i].timeTaken:F2}";
-                    resultPanel.UpdateResult(i, result);
-                }
-            }
+                generator.GenerateFromCharArray(currentMaps[i], i);
 
-            // 根據每個 agent 的建議調整自己的難度，並生成新迷宮
-            for (int i = 0; i < agents.Length; i++) {
-                int newDifficulty = models[i].SuggestDifficulty(agentDifficulties[i]);
+                Debug.Log($"Agent {i} starting simulation...");
+
+                var stats = agents[i].Simulate(currentMaps[i]);
+
+                PlayerModel model = new PlayerModel(
+                    stats.attempts, 
+                    stats.backtracks, 
+                    stats.nearSolves, 
+                    stats.resets, 
+                    stats.timeTaken
+                );
+
+                SaveMapToCSV(currentMaps[i], model, agents[i].GetType().Name);
+
+                int newDifficulty = model.SuggestDifficulty(agentDifficulties[i]);
                 Debug.Log($"Agent {i} difficulty changed: {agentDifficulties[i]} -> {newDifficulty}");
                 agentDifficulties[i] = newDifficulty;
-                GAEngine ga = new GAEngine(models[i]){
-                    populationSize = 30,
+
+                GAEngine ga = new GAEngine(model){
+                    populationSize = 300,
                     generations = 15,
-                    mutationRate = 0.1f,
-                    mazeSize = mazeSize
+                    crossoverRate = 0.8f,
+                    mapSize = mapSize
                 };
-                char[,] bestMaze = ga.Run();
-                Debug.Log($"GAEngine run complete for agent {i}");
-                generator.GenerateFromCharArray(bestMaze, i);
-                SaveMazeToCSV(bestMaze, models[i], agents[i].GetType().Name);
-                Debug.Log("Generated maze and saved CSV.");
+                
+                char[,] bestMap = ga.Run(agentDifficulties[i]);
+                currentMaps[i] = bestMap;
             }
 
             t++;
-            yield return new WaitForSeconds(intervalSeconds);
+            yield return new WaitForSeconds(intervalSeconds); 
+        }
+
+        // 保留最後生成的地圖（無統計數據）
+        for (int i = 0; i < agents.Length; i++) {
+            generator.GenerateFromCharArray(currentMaps[i], i);
+            SaveMapToCSV(currentMaps[i], null, agents[i].GetType().Name);
+            Debug.Log($"Final map generated and saved for agent {i} (no stats).");
         }
     }
 
 
-    void SaveMazeToCSV(char[,] maze, PlayerModel player, string tag)
+    void SaveMapToCSV(char[,] map, PlayerModel player, string tag)
     {
-        int rows = maze.GetLength(0);
-        int cols = maze.GetLength(1);
+        int rows = map.GetLength(0);
+        int cols = map.GetLength(1);
 
-        using (StreamWriter writer = new StreamWriter(savePath, true))
+        // 依 agent 名稱分檔
+        string agentCsvPath = Path.Combine(Application.dataPath, $"maze_records_{tag}.csv");
+
+        using (StreamWriter writer = new StreamWriter(agentCsvPath, true))
         {
-            writer.WriteLine($"#{tag} PlayerData: Attempts={player.attempts}, Backtracks={player.backtracks}, NearSolves={player.nearSolves}, Resets={player.resets}, TimeTaken={player.timeTaken}, SuggestedDifficulty={player.SuggestDifficulty(5)}");
+            if (player != null) {
+                writer.WriteLine($"#{tag} PlayerData: Attempts={player.attempts}, Backtracks={player.backtracks}, NearSolves={player.nearSolves}, Resets={player.resets}, TimeTaken={player.timeTaken}, SuggestedDifficulty={player.SuggestDifficulty(5)}");
+            }
+            else {
+                writer.WriteLine($"#{tag} PlayerData: (no stats, not played)");
+            }
 
             for (int y = 0; y < rows; y++)
             {
                 string line = "";
                 for (int x = 0; x < cols; x++)
                 {
-                    line += maze[y, x];
+                    line += map[y, x];
                     if (x < cols - 1) line += ",";
                 }
                 writer.WriteLine(line);

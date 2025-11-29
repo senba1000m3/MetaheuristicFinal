@@ -1,248 +1,316 @@
-using UnityEngine;
+using System;
 using System.Collections.Generic;
+using System.Linq;
 
-public class MapGenerator {
-    // 生成指定長度和轉角數的主路徑（簡易隨機生成，保證不重疊）
-    List<(int x,int y)> GeneratePath(int size, int pathLen, int cornersTarget){
-        List<(int x,int y)> path = new List<(int,int)>();
-        int x = 1, y = size/2;
-        path.Add((x,y));
-        int dir = 0; // 0右 1下 2左 3上
-        int[] dx = {1,0,-1,0};
-        int[] dy = {0,1,0,-1};
-        int corners = 0;
-        System.Random rnd = new System.Random();
-        HashSet<(int,int)> used = new HashSet<(int,int)>();
-        used.Add((x,y));
-        for(int i=1;i<pathLen;i++){
-            // 隨機決定是否轉彎
-            if(corners < cornersTarget && rnd.NextDouble()<0.3){
-                dir = (dir + rnd.Next(1,4))%4;
-                corners++;
-            }
-            int nx = x+dx[dir], ny = y+dy[dir];
-            if(nx<1||nx>=size-1||ny<1||ny>=size-1||used.Contains((nx,ny))){
-                // 換方向
-                dir = (dir+1)%4;
-                nx = x+dx[dir]; ny = y+dy[dir];
-            }
-            if(nx<1||nx>=size-1||ny<1||ny>=size-1||used.Contains((nx,ny))){
-                // 找不到路，提前結束
-                break;
-            }
-            x=nx; y=ny;
-            path.Add((x,y));
-            used.Add((x,y));
-        }
-        return path;
-    }
+public class MapGenerator
+{
+    private const char EMPTY = '#';
+    private const char PATH = 'X';
+    private const char PICKUP = 'P';
+    private const char DROPOFF = 'D';
+    private const char OBSTACLE = 'O';
+    private const char START = 'S';
+    private const char END = 'E';
 
-    public char[,] GenerateMap(int size, Dictionary<string, float> targetMetrics){
-        char[,] map = new char[size, size];
-        for(int y = 0; y < size; y++){
-            for(int x = 0; x < size; x++){
-                map[y, x] = 'O';
-            }
-        }
-        // 1. 生成主路徑
-        int pathLen = Mathf.Clamp(Mathf.RoundToInt(targetMetrics["PathLength"]), 8, size*size-2*size);
-        int cornersTarget = Mathf.Clamp(Mathf.RoundToInt(targetMetrics["Corners"]), 0, pathLen/2);
-        List<(int x,int y)> path = GeneratePath(size, pathLen, cornersTarget);
-        // 2. 標記主路徑
-        for(int i=0;i<path.Count;i++){
-            var p = path[i];
-            map[p.y, p.x] = 'X';
-        }
-        // 起點終點設在最外圈牆壁
-        PlaceStartAndEnd(map, size);
-        // 3. 分配 Pickups/Dropoffs 在路徑上
-        int pickups = Mathf.Clamp(Mathf.RoundToInt(targetMetrics["Pickups"]), 1, path.Count/2);
-        int dropoffs = pickups;
-        System.Random rnd = new System.Random();
-        HashSet<int> usedIdx = new HashSet<int>();
-        int placedP = 0, placedD = 0;
-        int maxTries = 1000, tries = 0;
-        int minIdx = 1;
-        int maxIdx = path.Count - 2;
-        if (maxIdx > minIdx) {
-            while(placedP < pickups && tries < maxTries){
-                int idx = rnd.Next(minIdx, maxIdx);
-                if(!usedIdx.Contains(idx)){
-                    var p = path[idx];
-                    map[p.y, p.x] = 'P';
-                    usedIdx.Add(idx);
-                    placedP++;
-                }
-                tries++;
-            }
-            tries = 0;
-            while(placedD < dropoffs && tries < maxTries){
-                int idx = rnd.Next(minIdx, maxIdx);
-                if(!usedIdx.Contains(idx)){
-                    var p = path[idx];
-                    map[p.y, p.x] = 'D';
-                    usedIdx.Add(idx);
-                    placedD++;
-                }
-                tries++;
-            }
-        }
-        // 4. 分配空白格
-        int emptyTarget = Mathf.Clamp(Mathf.RoundToInt(targetMetrics["EmptySpace"]), 0, size*size-path.Count);
-        int emptyPlaced = 0;
-        tries = 0;
-        while(emptyPlaced < emptyTarget && tries < maxTries){
-            int x = rnd.Next(1, size-1);
-            int y = rnd.Next(1, size-1);
-            if(map[y, x] == 'O'){
-                map[y, x] = '#';
-                emptyPlaced++;
-            }
-            tries++;
-        }
-        // 檢查地圖合法性
-        if (!CheckMap(map)) {
-            Debug.LogWarning("Map check failed after GenerateMap. Consider using GenerateValidMap for guaranteed validity.");
-        }
-        return map;
-    }
+    private Random _random = new Random();
 
-    private void DFS(char[,] map, int x, int y, int size){
-        int[] dx = { 0, 0, 2, -2 };
-        int[] dy = { 2, -2, 0, 0 };
-
-        List<int> dirs = new List<int> { 0, 1, 2, 3 };
-        Shuffle(dirs);
-
-        foreach(int dir in dirs){
-            int nx = x + dx[dir];
-            int ny = y + dy[dir];
-
-            // 只檢查內部格子，不管最外圍
-            if(nx > 0 && nx < size - 1 && ny > 0 && ny < size - 1 && map[ny, nx] == 'O'){
-                map[ny, nx] = 'X';
-                map[y + dy[dir]/2, x + dx[dir]/2] = 'X';
-                DFS(map, nx, ny, size);
-            }
-        }
-    }
-
-    private void Shuffle(List<int> list){
-        for(int i = 0; i < list.Count; i++){
-            int rand = Random.Range(i, list.Count);
-            int tmp = list[i];
-            list[i] = list[rand];
-            list[rand] = tmp;
-        }
-    }
-
-    private void PlaceStartAndEnd(char[,] map, int size){
-        // 起點設在左邊邊界的路徑
-        bool foundStart = false;
-        for(int y = 0; y < size; y++){
-            if(map[y, 0] == 'X'){
-                map[y, 0] = 'S';
-                foundStart = true;
-                break;
-            }
-        }
-        if(!foundStart){
-            map[1, 0] = 'S';
-        }
-        // 終點設在右邊邊界的路徑
-        bool foundEnd = false;
-        for(int y = size-1; y >= 0; y--){
-            if(map[y, size-1] == 'X'){
-                map[y, size-1] = 'E';
-                foundEnd = true;
-                break;
-            }
-        }
-        if(!foundEnd){
-            map[size-2, size-1] = 'E';
-        }
-    }
-
-    private void PlaceSpecialPoints(char[,] map, int size, int count, char symbol){
-        int placed = 0;
-        while(placed < count){
-            int x = Random.Range(1, size - 1);
-            int y = Random.Range(1, size - 1);
-
-            if(map[y, x] == 'X'){ // 只能放在路徑
-                map[y, x] = symbol;
-                placed++;
-            }
-        }
-    }
-
-    // 檢查地圖是否符合所有路徑規則
-    public bool CheckMap(char[,] map)
+    // 座標結構
+    private struct Point
     {
-        int rows = map.GetLength(0), cols = map.GetLength(1);
-        (int x, int y) start = (-1, -1), end = (-1, -1);
-        List<(int x, int y)> pickups = new List<(int, int)>();
-        List<(int x, int y)> dropoffs = new List<(int, int)>();
+        public int X, Y;
+        public Point(int x, int y) { X = x; Y = y; }
+        public override bool Equals(object obj) => obj is Point p && X == p.X && Y == p.Y;
+        public override int GetHashCode() => (X, Y).GetHashCode();
+    }
 
-        // 掃描地圖，記錄 S/E/P/D 位置
-        for (int y = 0; y < rows; y++)
-            for (int x = 0; x < cols; x++)
-            {
-                if (map[y, x] == 'S') start = (x, y);
-                if (map[y, x] == 'E') end = (x, y);
-                if (map[y, x] == 'P') pickups.Add((x, y));
-                if (map[y, x] == 'D') dropoffs.Add((x, y));
-            }
-        if (start == (-1, -1) || end == (-1, -1)) return false;
+    public char[,] GenerateMap(int size)
+    {
+        int maxAttempts = 2000;
 
-        // BFS 檢查所有可走格是否連通且路徑不斷裂
-        Queue<(int x, int y, int cargo, HashSet<(int,int)> pSet, HashSet<(int,int)> dSet)> q = new Queue<(int, int, int, HashSet<(int,int)>, HashSet<(int,int)>)>();
-        bool[,,] visited = new bool[rows, cols, pickups.Count+2];
-        q.Enqueue((start.x, start.y, 0, new HashSet<(int,int)>(), new HashSet<(int,int)>()));
-        visited[start.y, start.x, 0] = true;
-        int[] dx = { 1, -1, 0, 0 }, dy = { 0, 0, 1, -1 };
-        while (q.Count > 0)
+        for (int attempt = 0; attempt < maxAttempts; attempt++)
         {
-            var (x, y, cargo, pSet, dSet) = q.Dequeue();
-            // 撿貨
-            if (map[y, x] == 'P' && !pSet.Contains((x, y))) {
-                pSet = new HashSet<(int,int)>(pSet); pSet.Add((x, y));
-                cargo++;
-            }
-            // 放貨
-            if (map[y, x] == 'D' && !dSet.Contains((x, y)) && cargo > 0) {
-                dSet = new HashSet<(int,int)>(dSet); dSet.Add((x, y));
-                cargo--;
-            }
-            // 到終點前必須經過所有 P/D
-            if (map[y, x] == 'E') {
-                if (pSet.Count == pickups.Count && dSet.Count == dropoffs.Count && cargo == 0)
-                    return true;
-                continue;
-            }
-            for (int d = 0; d < 4; d++)
+            char[,] map = TryGenerateSingleMap(size);
+            
+            if (map != null)
             {
-                int nx = x + dx[d], ny = y + dy[d];
-                if (nx >= 0 && nx < cols && ny >= 0 && ny < rows &&
-                    !visited[ny, nx, cargo] && "XSPD#E".Contains(map[ny, nx]))
+                return map;
+            }
+        }
+
+        return GenerateFallbackMap(size);
+    }
+
+    private char[,] TryGenerateSingleMap(int size)
+    {
+        char[,] map = new char[size, size];
+
+        // 1. 初始化全地圖為 Empty
+        for (int i = 0; i < size; i++)
+            for (int j = 0; j < size; j++)
+                map[i, j] = EMPTY;
+
+        // 2. 設置四周圍牆
+        for (int i = 0; i < size; i++)
+        {
+            map[0, i] = OBSTACLE; map[size - 1, i] = OBSTACLE;
+            map[i, 0] = OBSTACLE; map[i, size - 1] = OBSTACLE;
+        }
+
+        // 3. 設置起點 (S) 和 終點 (E)
+        Point startPos = new Point(1 + _random.Next(size - 2), 0);
+        Point endPos = new Point(1 + _random.Next(size - 2), size - 1);
+        map[startPos.X, startPos.Y] = START;
+        map[endPos.X, endPos.Y] = END;
+
+        // 4. 隨機生成 Pickup (P) 和 Dropoff (D)
+        // 為了保證有解，先只生成 1 組。若要多組可改成 loop
+        List<Point> pickups = new List<Point>();
+        List<Point> dropoffs = new List<Point>();
+        
+        // 嘗試放置 P，確保周圍至少有一格是空的
+        if (!TryPlaceObjectSmart(map, size, PICKUP, pickups)) return null;
+        // 嘗試放置 D，確保周圍至少有一格是空的
+        if (!TryPlaceObjectSmart(map, size, DROPOFF, dropoffs)) return null;
+
+        // 5. 隨機生成內部障礙物 (O)
+        // 減少障礙物數量以確保路徑暢通 (例如固定 5 個，或 5%)
+        int obstacleCount = 5; 
+        for (int i = 0; i < obstacleCount; i++)
+        {
+            TryPlaceObject(map, size, OBSTACLE);
+        }
+
+        // 6. 驗證並生成路徑
+        // 複製一份地圖來畫路徑
+        char[,] solvedMap = (char[,])map.Clone();
+        
+        if (FindAndMarkPath(solvedMap, size, startPos, endPos, pickups, dropoffs))
+        {
+            return solvedMap; // 成功！回傳畫好 X 的地圖
+        }
+
+        return null; // 此配置無解，回傳 null 讓外層迴圈重試
+    }
+
+    // 放置物件，並檢查上下左右是否有空位 (避免生成死路)
+    private bool TryPlaceObjectSmart(char[,] map, int size, char type, List<Point> tracker)
+    {
+        for (int i = 0; i < 50; i++) // 嘗試 50 次
+        {
+            int r = _random.Next(1, size - 1);
+            int c = _random.Next(1, size - 1);
+
+            if (map[r, c] == EMPTY)
+            {
+                // 檢查周圍是否有空位 (Empty)
+                if (HasEmptyNeighbor(map, size, r, c))
                 {
-                    visited[ny, nx, cargo] = true;
-                    q.Enqueue((nx, ny, cargo, pSet, dSet));
+                    map[r, c] = type;
+                    tracker.Add(new Point(r, c));
+                    return true;
                 }
             }
         }
         return false;
     }
 
-    // 生成地圖直到符合規則
-    public char[,] GenerateValidMap(int size, Dictionary<string, float> targetMetrics)
+    private void TryPlaceObject(char[,] map, int size, char type)
     {
-        char[,] map;
-        int tries = 0;
-        do {
-            map = GenerateMap(size, targetMetrics);
-            tries++;
-        } while (!CheckMap(map) && tries < 100);
+        for (int i = 0; i < 20; i++)
+        {
+            int r = _random.Next(1, size - 1);
+            int c = _random.Next(1, size - 1);
+            if (map[r, c] == EMPTY)
+            {
+                map[r, c] = type;
+                return;
+            }
+        }
+    }
+
+    private bool HasEmptyNeighbor(char[,] map, int size, int r, int c)
+    {
+        int[] dx = { 0, 0, 1, -1 };
+        int[] dy = { 1, -1, 0, 0 };
+        for(int k=0; k<4; k++)
+        {
+            int nx = r + dx[k];
+            int ny = c + dy[k];
+            if (nx >= 0 && nx < size && ny >= 0 && ny < size)
+            {
+                if (map[nx, ny] == EMPTY) return true;
+            }
+        }
+        return false;
+    }
+
+    // 核心路徑邏輯：Start -> P鄰居 -> D鄰居 -> End
+    private bool FindAndMarkPath(char[,] map, int size, Point start, Point end, List<Point> pickups, List<Point> dropoffs)
+    {
+        Point currentPos = start;
+        List<Point> currentPickups = new List<Point>(pickups);
+        List<Point> currentDropoffs = new List<Point>(dropoffs);
+
+        // 1. 去最近的 P (的鄰居)
+        while (currentPickups.Count > 0)
+        {
+            Point targetP = currentPickups[0]; // 簡化：直接取第一個
+            List<Point> path = GetPathToAdjacent(map, size, currentPos, targetP);
+            if (path == null) return false;
+
+            MarkPath(map, path);
+            currentPos = path.Last(); // 更新目前位置
+            currentPickups.RemoveAt(0);
+
+            // 2. 去最近的 D (的鄰居)
+            Point targetD = currentDropoffs[0];
+            List<Point> path2 = GetPathToAdjacent(map, size, currentPos, targetD);
+            if (path2 == null) return false;
+
+            MarkPath(map, path2);
+            currentPos = path2.Last();
+            currentDropoffs.RemoveAt(0);
+        }
+
+        // 3. 去終點 (直接踩上去)
+        List<Point> finalPath = GetPathToTarget(map, size, currentPos, end);
+        if (finalPath == null) return false;
+
+        MarkPath(map, finalPath);
+        
+        // 確保起點終點符號不被覆蓋
+        map[start.X, start.Y] = START;
+        map[end.X, end.Y] = END;
+
+        return true;
+    }
+
+    private void MarkPath(char[,] map, List<Point> path)
+    {
+        foreach (var p in path)
+        {
+            // 只有 Empty 可以變成 Path，保留 S, E, P, D, O
+            if (map[p.X, p.Y] == EMPTY)
+            {
+                map[p.X, p.Y] = PATH;
+            }
+        }
+    }
+
+    // BFS: 走到目標的"旁邊"
+    private List<Point> GetPathToAdjacent(char[,] map, int size, Point start, Point target)
+    {
+        List<Point> validDestinations = new List<Point>();
+        int[] dx = { 0, 0, 1, -1 };
+        int[] dy = { 1, -1, 0, 0 };
+
+        // 找出目標四周可站立的點
+        for (int i = 0; i < 4; i++)
+        {
+            int nx = target.X + dx[i];
+            int ny = target.Y + dy[i];
+            if (IsWalkable(map, size, nx, ny))
+            {
+                validDestinations.Add(new Point(nx, ny));
+            }
+        }
+
+        if (validDestinations.Count == 0) return null;
+        return BFS(map, size, start, validDestinations);
+    }
+
+    // BFS: 直接走到目標 (用於終點)
+    private List<Point> GetPathToTarget(char[,] map, int size, Point start, Point target)
+    {
+        return BFS(map, size, start, new List<Point> { target });
+    }
+
+    private List<Point> BFS(char[,] map, int size, Point start, List<Point> targets)
+    {
+        Queue<Point> queue = new Queue<Point>();
+        Dictionary<Point, Point> parents = new Dictionary<Point, Point>();
+        HashSet<Point> visited = new HashSet<Point>();
+
+        queue.Enqueue(start);
+        visited.Add(start);
+
+        Point? foundTarget = null;
+
+        while (queue.Count > 0)
+        {
+            Point current = queue.Dequeue();
+
+            if (targets.Contains(current))
+            {
+                foundTarget = current;
+                break;
+            }
+
+            int[] dx = { 0, 0, 1, -1 };
+            int[] dy = { 1, -1, 0, 0 };
+
+            for (int i = 0; i < 4; i++)
+            {
+                int nx = current.X + dx[i];
+                int ny = current.Y + dy[i];
+                Point next = new Point(nx, ny);
+
+                // 判斷是否可以走：
+                // 1. 在地圖內
+                // 2. 是路(Empty, Start, End) 或是 目標點(targets)
+                // 注意：已經生成的 PATH ('X') 這裡視為障礙物，避免路徑自我重疊（貪食蛇自殺）
+                if (nx >= 0 && nx < size && ny >= 0 && ny < size)
+                {
+                    bool isTarget = targets.Contains(next);
+                    bool isWalkable = map[nx, ny] == EMPTY || map[nx, ny] == START || map[nx, ny] == END;
+
+                    if (!visited.Contains(next) && (isWalkable || isTarget))
+                    {
+                        visited.Add(next);
+                        parents[next] = current;
+                        queue.Enqueue(next);
+                    }
+                }
+            }
+        }
+
+        if (foundTarget == null) return null;
+
+        // 回溯路徑
+        List<Point> path = new List<Point>();
+        Point curr = foundTarget.Value;
+        while (!curr.Equals(start))
+        {
+            path.Add(curr);
+            curr = parents[curr];
+        }
+        path.Reverse();
+        return path;
+    }
+
+    private bool IsWalkable(char[,] map, int size, int x, int y)
+    {
+        if (x < 0 || x >= size || y < 0 || y >= size) return false;
+        char c = map[x, y];
+        return c == EMPTY || c == START || c == END;
+    }
+
+    // 萬一失敗的保底地圖
+    private char[,] GenerateFallbackMap(int size)
+    {
+        char[,] map = new char[size, size];
+        for (int i = 0; i < size; i++)
+            for (int j = 0; j < size; j++)
+                map[i, j] = EMPTY;
+        
+        // 圍牆
+        for (int i = 0; i < size; i++) {
+            map[0, i] = OBSTACLE; map[size - 1, i] = OBSTACLE;
+            map[i, 0] = OBSTACLE; map[i, size - 1] = OBSTACLE;
+        }
+        
+        map[1, 0] = START;
+        map[1, size - 1] = END;
         return map;
     }
 }

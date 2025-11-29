@@ -7,8 +7,7 @@ public class NormalAgent : IPlayerAgent{
     public PlayerModel Simulate(char[,] maze){
         var start = MazeSimUtils.Find(maze, 'S');
         var end = MazeSimUtils.Find(maze, 'E');
-        Debug.Log($"[BeginnerAgent] Start: ({start.x},{start.y}), End: ({end.x},{end.y})");
-
+        Debug.Log($"[NormalAgent] Start: ({start.x},{start.y}), End: ({end.x},{end.y})");
 
         int x = start.x;
         int y = start.y;

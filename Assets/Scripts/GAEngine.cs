@@ -1,12 +1,15 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Linq;
 
 public class GAEngine
 {
+    // 這邊變數會以 PuzzleController 裡的設定為主。
     public int populationSize = 30;
     public int generations = 10;
+    public int mapSize = 10;
+    public float crossoverRate = 0.8f;
     public float mutationRate = 0.1f;
-    public int mazeSize = 9;
 
     private List<char[,]> population;
     private PlayerModel playerModel;
@@ -19,52 +22,69 @@ public class GAEngine
         population = new List<char[,]>();
     }
 
-    public char[,] Run()
+    public char[,] Run(int difficulty)
     {
         InitializePopulation();
 
-        char[,] bestMaze = null;
+        char[,] bestMap = null;
         float bestFit = -1f;
 
-        Dictionary<string, float> targetMetrics = PlayerModel.MapDifficultyToTargets(playerModel.SuggestDifficulty(5));
+        Dictionary<string, float> targetMetrics = PlayerModel.MapDifficultyToTargets(difficulty);
 
-        for (int gen = 0; gen < generations; gen++)
-        {
+        for (int gen = 0; gen < generations; gen++){
             float maxFit = -1f;
             char[,] bestInGen = null;
 
-            foreach (var maze in population)
+            foreach (var map in population)
             {
-                float f = Fitness(maze, targetMetrics);
+                float f = Fitness(map, targetMetrics);
                 if (f > maxFit)
                 {
                     maxFit = f;
-                    bestInGen = maze;
+                    bestInGen = map;
                 }
             }
 
             if (maxFit > bestFit)
             {
                 bestFit = maxFit;
-                bestMaze = CloneMaze(bestInGen);
+                bestMap = CloneMap(bestInGen);
             }
 
             List<char[,]> nextGen = new List<char[,]>();
-            while (nextGen.Count < populationSize)
-            {
-                char[,] p1 = Select();
-                char[,] p2 = Select();
-                (char[,], char[,]) children = Crossover(p1, p2);
-                Mutate(children.Item1);
-                Mutate(children.Item2);
-                nextGen.Add(children.Item1);
-                nextGen.Add(children.Item2);
+            int crossoverCount = (int)(populationSize * crossoverRate);
+
+            List<int> indices = Enumerable.Range(0, population.Count).ToList();
+
+            // 交錯
+            List<char[,]> crossoverParents = new List<char[,]>();
+
+            for (int i = 0; i < crossoverCount; i++){
+                int idx = indices[Random.Range(0, indices.Count)];
+                crossoverParents.Add(population[idx]);
+                indices.Remove(idx);
+            }
+
+            for (int i = 0; i < crossoverParents.Count; i += 2){
+                var (c1, c2) = Crossover(crossoverParents[i], crossoverParents[i + 1]);
+                nextGen.Add(c1);
+                nextGen.Add(c2);
+            }
+
+            foreach (int idx in indices){
+                char[,] clone = CloneMap(population[idx]);
+                nextGen.Add(clone);
+            }
+
+            // 突變
+            foreach (var child in nextGen){
+                Mutate(child);
             }
 
             population = nextGen;
         }
 
-        return bestMaze;
+        return bestMap;
     }
 
     private void InitializePopulation()
@@ -72,18 +92,17 @@ public class GAEngine
         population.Clear();
         for (int i = 0; i < populationSize; i++)
         {
-            population.Add(mapGenerator.GenerateMap(mazeSize, PlayerModel.MapDifficultyToTargets(playerModel.SuggestDifficulty(5))));
+            population.Add(mapGenerator.GenerateMap(mapSize));
         }
     }
 
-
-    private float Fitness(char[,] maze, Dictionary<string, float> targetMetrics)
+    private float Fitness(char[,] map, Dictionary<string, float> targetMetrics)
     {
-        float pathLen = CalculatePathLength(maze);
-        float corners = CountCorners(maze);
-        float empty = CountEmptySpaces(maze);
-        float pickups = CountPickups(maze);
-        float ortho = CountOrthogonalPickups(maze);
+        float pathLen = CalculatePathLength(map);
+        float corners = CountCorners(map);
+        float empty = CountEmptySpaces(map);
+        float pickups = CountPickups(map);
+        float ortho = CountOrthogonalPickups(map);
 
         float score = 0f;
         score += Mathf.Max(0f, targetMetrics["PathLength"] - Mathf.Abs(targetMetrics["PathLength"] - pathLen));
@@ -95,18 +114,13 @@ public class GAEngine
         return score;
     }
 
-    private char[,] Select()
-    {
-        return population[Random.Range(0, population.Count)];
-    }
-
     private (char[,], char[,]) Crossover(char[,] p1, char[,] p2)
     {
         int size = p1.GetLength(0);
-        char[,] c1 = CloneMaze(p1);
-        char[,] c2 = CloneMaze(p2);
+        char[,] c1 = CloneMap(p1);
+        char[,] c2 = CloneMap(p2);
 
-        int row = Random.Range(1, size-1);
+        int row = Random.Range(1, size-1); // 排除最邊邊兩行
         for (int y = row; y < size-1; y++)
         {
             for (int x = 1; x < size-1; x++)
@@ -117,50 +131,91 @@ public class GAEngine
             }
         }
 
-        MazeUtils.FillPathBFS(c1);
-        MazeUtils.FillPathBFS(c2);
+        // BFS 確保路徑連通
+        // BFS.FillPathBFS(c1);
+        // BFS.FillPathBFS(c2);
 
         return (c1, c2);
     }
 
-    private void Mutate(char[,] maze)
+    private void Mutate(char[,] map)
     {
-        int size = maze.GetLength(0);
+        int size = map.GetLength(0);
         for(int y=1;y<size-1;y++)
         {
             for(int x=1;x<size-1;x++)
             {
                 if(Random.value < mutationRate)
                 {
-                    char[] tiles = { 'X','P','D' };
-                    maze[y,x] = tiles[Random.Range(0,tiles.Length)];
+                    char[] tiles = {'X', 'P', 'D'};
+                    map[y,x] = tiles[Random.Range(0,tiles.Length)];
                 }
             }
         }
     }
 
-    private char[,] CloneMaze(char[,] maze)
+    private char[,] CloneMap(char[,] map)
     {
-        int size = maze.GetLength(0);
+        int size = map.GetLength(0);
         char[,] clone = new char[size,size];
         for(int y=0;y<size;y++)
+        {
             for(int x=0;x<size;x++)
-                clone[y,x] = maze[y,x];
+            {
+                clone[y,x] = map[y,x];
+            }
+        }
         return clone;
     }
 
-    private float CalculatePathLength(char[,] maze)
+    // 繼續各種參數
+    private float CalculatePathLength(char[,] map)
     {
-        int count=0;
-        int size=maze.GetLength(0);
-        for(int y=0;y<size;y++)
-            for(int x=0;x<size;x++)
-                if(maze[y,x]=='X'||maze[y,x]=='S'||maze[y,x]=='E') count++;
-        return count;
+        int cnt=0;
+        int size=map.GetLength(0);
+        
+        for(int y=0;y<size;y++){
+            for(int x=0;x<size;x++){
+                if(map[y,x]=='X'){
+                    cnt++;
+                }
+            }
+        }
+        return cnt;
     }
 
-    private float CountCorners(char[,] maze){ return Random.Range(0,10); }
-    private float CountEmptySpaces(char[,] maze){ int cnt=0; int size=maze.GetLength(0); for(int y=0;y<size;y++) for(int x=0;x<size;x++) if(maze[y,x]=='#') cnt++; return cnt; }
-    private float CountPickups(char[,] maze){ int cnt=0; int size=maze.GetLength(0); for(int y=0;y<size;y++) for(int x=0;x<size;x++) if(maze[y,x]=='P') cnt++; return cnt; }
-    private float CountOrthogonalPickups(char[,] maze){ return Random.Range(0,2); }
+    private float CountCorners(char[,] map){ 
+        return Random.Range(0,10);
+    }
+
+    private float CountEmptySpaces(char[,] map){ 
+        int cnt=0;
+        int size=map.GetLength(0);
+
+        for(int y=0;y<size;y++){
+            for(int x=0;x<size;x++){
+                if(map[y,x]=='#'){
+                    cnt++;
+                }
+            }
+        }
+        return cnt;
+    }
+    private float CountPickups(char[,] map){
+        int cnt=0;
+        int size=map.GetLength(0);
+
+        for(int y=0;y<size;y++){
+            for(int x=0;x<size;x++){
+                if(map[y,x]=='P'){
+                    cnt++;
+                }
+            } 
+        }
+        return cnt;
+    }
+
+    private float CountOrthogonalPickups(char[,] map){
+        return Random.Range(0,2);
+    }
 }
