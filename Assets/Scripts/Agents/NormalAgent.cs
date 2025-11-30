@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class NormalAgent : IPlayerAgent{
 
-    public PlayerModel Simulate(char[,] maze){
+    public override PlayerModel Simulate(char[,] maze){
         var start = MazeSimUtils.Find(maze, 'S');
         var end = MazeSimUtils.Find(maze, 'E');
         Debug.Log($"[NormalAgent] Start: ({start.x},{start.y}), End: ({end.x},{end.y})");

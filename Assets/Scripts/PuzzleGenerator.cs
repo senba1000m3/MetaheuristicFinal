@@ -12,7 +12,7 @@ public enum TileType{
 
 public class PuzzleGenerator : MonoBehaviour{
 
-    [Header("Assign Prefabs Here")]
+    [Header("地圖方塊物件")]
     public GameObject emptyPrefab;
     public GameObject pathPrefab;
     public GameObject pickupPrefab;

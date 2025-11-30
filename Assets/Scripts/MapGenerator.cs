@@ -156,20 +156,20 @@ public class MapGenerator
         {
             Point targetP = currentPickups[0]; // 簡化：直接取第一個
             List<Point> path = GetPathToAdjacent(map, size, currentPos, targetP);
-            if (path == null) return false;
+              if (path == null || path.Count == 0) return false;
+              MarkPath(map, path);
+              currentPos = path.LastOrDefault(); // 更新目前位置
+              if (currentPos.Equals(default(Point))) return false;
+              currentPickups.RemoveAt(0);
 
-            MarkPath(map, path);
-            currentPos = path.Last(); // 更新目前位置
-            currentPickups.RemoveAt(0);
-
-            // 2. 去最近的 D (的鄰居)
-            Point targetD = currentDropoffs[0];
-            List<Point> path2 = GetPathToAdjacent(map, size, currentPos, targetD);
-            if (path2 == null) return false;
-
-            MarkPath(map, path2);
-            currentPos = path2.Last();
-            currentDropoffs.RemoveAt(0);
+              // 2. 去最近的 D (的鄰居)
+              Point targetD = currentDropoffs[0];
+              List<Point> path2 = GetPathToAdjacent(map, size, currentPos, targetD);
+              if (path2 == null || path2.Count == 0) return false;
+              MarkPath(map, path2);
+              currentPos = path2.LastOrDefault();
+              if (currentPos.Equals(default(Point))) return false;
+              currentDropoffs.RemoveAt(0);
         }
 
         // 3. 去終點 (直接踩上去)

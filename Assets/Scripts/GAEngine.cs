@@ -9,7 +9,7 @@ public class GAEngine
     public int generations = 10;
     public int mapSize = 10;
     public float crossoverRate = 0.8f;
-    public float mutationRate = 0.1f;
+    public float mutationRate = 0.03f;
 
     private List<char[,]> population;
     private PlayerModel playerModel;
@@ -22,7 +22,7 @@ public class GAEngine
         population = new List<char[,]>();
     }
 
-    public char[,] Run(int difficulty)
+    public char[,] Run(int difficulty, Dictionary<string, float> _weights = null)
     {
         InitializePopulation();
 
@@ -37,13 +37,15 @@ public class GAEngine
 
             foreach (var map in population)
             {
-                float f = Fitness(map, targetMetrics);
+                float f = Fitness(map, targetMetrics, _weights);
                 if (f > maxFit)
                 {
                     maxFit = f;
                     bestInGen = map;
                 }
             }
+
+            Debug.Log($"GA Generation {gen}: Best Score = {maxFit}, Historical Best = {bestFit}");
 
             if (maxFit > bestFit)
             {
@@ -96,7 +98,7 @@ public class GAEngine
         }
     }
 
-    private float Fitness(char[,] map, Dictionary<string, float> targetMetrics)
+    private float Fitness(char[,] map, Dictionary<string, float> targetMetrics, Dictionary<string, float> _weights)
     {
         float pathLen = CalculatePathLength(map);
         float corners = CountCorners(map);
@@ -104,12 +106,32 @@ public class GAEngine
         float pickups = CountPickups(map);
         float ortho = CountOrthogonalPickups(map);
 
+        var weights = new Dictionary<string, float> {
+            { "PathLength", 1 },
+            { "Corners", 1 },
+            { "EmptySpace", 1 },
+            { "Pickups", 1 },
+            { "OrthogonalPickups", 1 }
+        };
+
+        if (_weights != null) {
+            weights = _weights;
+        }
+
+        // 正規化權重 => 設權重總和為 1
+        float sum = weights.Values.Sum();
+        if (sum > 0f) {
+            foreach (var key in weights.Keys.ToList()) {
+                weights[key] /= sum;
+            }
+        }
+
         float score = 0f;
-        score += Mathf.Max(0f, targetMetrics["PathLength"] - Mathf.Abs(targetMetrics["PathLength"] - pathLen));
-        score += Mathf.Max(0f, targetMetrics["Corners"] - Mathf.Abs(targetMetrics["Corners"] - corners));
-        score += Mathf.Max(0f, targetMetrics["EmptySpace"] - Mathf.Abs(targetMetrics["EmptySpace"] - empty));
-        score += Mathf.Max(0f, targetMetrics["Pickups"] - Mathf.Abs(targetMetrics["Pickups"] - pickups));
-        score += Mathf.Max(0f, targetMetrics["OrthogonalPickups"] - Mathf.Abs(targetMetrics["OrthogonalPickups"] - ortho));
+        score += Mathf.Max(0f, targetMetrics["PathLength"] - Mathf.Abs(targetMetrics["PathLength"] - pathLen)) * weights["PathLength"];
+        score += Mathf.Max(0f, targetMetrics["Corners"] - Mathf.Abs(targetMetrics["Corners"] - corners)) * weights["Corners"];
+        score += Mathf.Max(0f, targetMetrics["EmptySpace"] - Mathf.Abs(targetMetrics["EmptySpace"] - empty)) * weights["EmptySpace"];
+        score += Mathf.Max(0f, targetMetrics["Pickups"] - Mathf.Abs(targetMetrics["Pickups"] - pickups)) * weights["Pickups"];
+        score += Mathf.Max(0f, targetMetrics["OrthogonalPickups"] - Mathf.Abs(targetMetrics["OrthogonalPickups"] - ortho)) * weights["OrthogonalPickups"];
 
         return score;
     }
@@ -147,10 +169,36 @@ public class GAEngine
             {
                 if(Random.value < mutationRate)
                 {
-                    char[] tiles = {'X', 'P', 'D'};
+                    char[] tiles = {'X', 'P', 'D', '#'};
                     map[y,x] = tiles[Random.Range(0,tiles.Length)];
                 }
             }
+        }
+
+        List<(int y, int x)> pList = new List<(int, int)>();
+        List<(int y, int x)> dList = new List<(int, int)>();
+        for(int y=1;y<size-1;y++)
+        {
+            for(int x=1;x<size-1;x++)
+            {
+                if(map[y,x] == 'P') pList.Add((y,x));
+                if(map[y,x] == 'D') dList.Add((y,x));
+            }
+        }
+
+        if(pList.Count > dList.Count)
+        {
+            int diff = pList.Count - dList.Count;
+            var removeList = pList.OrderBy(_ => Random.value).Take(diff);
+            foreach(var (y,x) in removeList)
+                map[y,x] = '#';
+        }
+        else if(dList.Count > pList.Count)
+        {
+            int diff = dList.Count - pList.Count;
+            var removeList = dList.OrderBy(_ => Random.value).Take(diff);
+            foreach(var (y,x) in removeList)
+                map[y,x] = '#';
         }
     }
 

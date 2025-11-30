@@ -4,38 +4,45 @@ using System.Collections.Generic;
 using System.IO;
 
 public class PuzzleController : MonoBehaviour
+    
 {
+    [Header("相關元件")]
     public PuzzleGenerator generator;
     public ResultPanelController resultPanel;
+
+    [Header("初始設定參數")]
     public int mapSize = 10;
-    public float intervalSeconds = 5f;
     public int T = 100;
+    public float intervalSeconds = 5f;
+
+    [Header("GA 適應度分數權重")]
+    [Range(0f, 1f)] public float pathLengthWeight = 1f;
+    [Range(0f, 1f)] public float cornersWeight = 1f;
+    [Range(0f, 1f)] public float emptySpaceWeight = 1f;
+    [Range(0f, 1f)] public float pickupsWeight = 1f;
+    [Range(0f, 1f)] public float orthogonalPickupsWeight = 1f;
+
+    [Header("使用的 Agent 列表")]
+    public List<IPlayerAgent> agents;
 
     private string savePath;
     private int t = 0;
     private int[] agentDifficulties;
     private MapGenerator mapGenerator;
 
-    IPlayerAgent[] agents;
-
     void Start()
     {
-        savePath = Path.Combine(Application.dataPath, "maze_records.csv");
+        savePath = Path.Combine(Application.dataPath, "map_records.csv");
 
-        agents = new IPlayerAgent[]{
-            // new BeginnerAgent(),
-            // new NormalAgent(),
-            new ExpertAgent()
-        };
 
         Debug.Log("Initializing MapGenerator in PuzzleController...");
 
         mapGenerator = new MapGenerator();
 
         Debug.Log($"PuzzleController Start: mapSize={mapSize}, intervalSeconds={intervalSeconds}, T={T}");
-        Debug.Log($"Agents count: {agents.Length}");
+        Debug.Log($"Agents count: {agents.Count}");
 
-        agentDifficulties = new int[agents.Length];
+        agentDifficulties = new int[agents.Count];
         for (int i = 0; i < agentDifficulties.Length; i++){
             agentDifficulties[i] = 5;
         }
@@ -45,8 +52,8 @@ public class PuzzleController : MonoBehaviour
     IEnumerator GenerateLoop()
     {
         // 準備初始地圖
-        char[][,] currentMaps = new char[agents.Length][,];
-        for (int i = 0; i < agents.Length; i++) {
+        char[][,] currentMaps = new char[agents.Count][,];
+        for (int i = 0; i < agents.Count; i++) {
             currentMaps[i] = mapGenerator.GenerateMap(mapSize);
         }
 
@@ -58,10 +65,10 @@ public class PuzzleController : MonoBehaviour
                 }
             }
 
-            for (int i = 0; i < agents.Length; i++) {
+            for (int i = 0; i < agents.Count; i++) {
                 generator.GenerateFromCharArray(currentMaps[i], i);
 
-                Debug.Log($"Agent {i} starting simulation...");
+                Debug.Log($"Agent {i} starting simulation on map at iteration {t} with difficulty {agentDifficulties[i]}.");
 
                 var stats = agents[i].Simulate(currentMaps[i]);
 
@@ -79,14 +86,25 @@ public class PuzzleController : MonoBehaviour
                 Debug.Log($"Agent {i} difficulty changed: {agentDifficulties[i]} -> {newDifficulty}");
                 agentDifficulties[i] = newDifficulty;
 
+                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
                 GAEngine ga = new GAEngine(model){
                     populationSize = 300,
-                    generations = 15,
+                    generations = 10,
                     crossoverRate = 0.8f,
                     mapSize = mapSize
                 };
-                
-                char[,] bestMap = ga.Run(agentDifficulties[i]);
+
+                var weights = new Dictionary<string, float> {
+                    { "PathLength", pathLengthWeight },
+                    { "Corners", cornersWeight },
+                    { "EmptySpace", emptySpaceWeight },
+                    { "Pickups", pickupsWeight },
+                    { "OrthogonalPickups", orthogonalPickupsWeight }
+                };
+
+                char[,] bestMap = ga.Run(agentDifficulties[i], weights);
+                stopwatch.Stop();
+                Debug.Log($"GAEngine.Run 花費時間: {stopwatch.ElapsedMilliseconds} ms");
                 currentMaps[i] = bestMap;
             }
 
@@ -95,7 +113,13 @@ public class PuzzleController : MonoBehaviour
         }
 
         // 保留最後生成的地圖（無統計數據）
-        for (int i = 0; i < agents.Length; i++) {
+        foreach (var obj in GameObject.FindObjectsOfType<GameObject>()) {
+            if (obj.name.StartsWith("PuzzleRoot")) {
+                Destroy(obj);
+            }
+        }
+
+        for (int i = 0; i < agents.Count; i++) {
             generator.GenerateFromCharArray(currentMaps[i], i);
             SaveMapToCSV(currentMaps[i], null, agents[i].GetType().Name);
             Debug.Log($"Final map generated and saved for agent {i} (no stats).");
@@ -109,7 +133,7 @@ public class PuzzleController : MonoBehaviour
         int cols = map.GetLength(1);
 
         // 依 agent 名稱分檔
-        string agentCsvPath = Path.Combine(Application.dataPath, $"maze_records_{tag}.csv");
+        string agentCsvPath = Path.Combine(Application.dataPath, $"map_records_{tag}.csv");
 
         using (StreamWriter writer = new StreamWriter(agentCsvPath, true))
         {
