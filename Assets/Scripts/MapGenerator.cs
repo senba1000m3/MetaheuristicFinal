@@ -147,29 +147,46 @@ public class MapGenerator
     // 核心路徑邏輯：Start -> P鄰居 -> D鄰居 -> End
     private bool FindAndMarkPath(char[,] map, int size, Point start, Point end, List<Point> pickups, List<Point> dropoffs)
     {
+        // === 防禦性檢查：防止 GA 傳入壞掉的數據 ===
+        if (pickups == null || dropoffs == null) return false;
+        
+        // 如果數量不一致，或者根本沒有任務，視為無效地圖
+        if (pickups.Count != dropoffs.Count || pickups.Count == 0) return false;
+        // ==========================================
+
         Point currentPos = start;
         List<Point> currentPickups = new List<Point>(pickups);
         List<Point> currentDropoffs = new List<Point>(dropoffs);
 
         // 1. 去最近的 P (的鄰居)
+        // 因為上面已經檢查過數量相等，這裡可以用 while(Count > 0)
         while (currentPickups.Count > 0)
         {
-            Point targetP = currentPickups[0]; // 簡化：直接取第一個
-            List<Point> path = GetPathToAdjacent(map, size, currentPos, targetP);
-              if (path == null || path.Count == 0) return false;
-              MarkPath(map, path);
-              currentPos = path.LastOrDefault(); // 更新目前位置
-              if (currentPos.Equals(default(Point))) return false;
-              currentPickups.RemoveAt(0);
+            // 安全檢查：雖然開頭檢查過，但為了防止邏輯錯誤，再次確認
+            if (currentDropoffs.Count == 0) return false;
 
-              // 2. 去最近的 D (的鄰居)
-              Point targetD = currentDropoffs[0];
-              List<Point> path2 = GetPathToAdjacent(map, size, currentPos, targetD);
-              if (path2 == null || path2.Count == 0) return false;
-              MarkPath(map, path2);
-              currentPos = path2.LastOrDefault();
-              if (currentPos.Equals(default(Point))) return false;
-              currentDropoffs.RemoveAt(0);
+            Point targetP = currentPickups[0]; 
+            List<Point> path = GetPathToAdjacent(map, size, currentPos, targetP);
+            
+            if (path == null || path.Count == 0) return false;
+            
+            MarkPath(map, path);
+            currentPos = path.LastOrDefault(); 
+            if (currentPos.Equals(default(Point))) return false;
+            
+            currentPickups.RemoveAt(0);
+
+            // 2. 去最近的 D (的鄰居)
+            Point targetD = currentDropoffs[0];
+            List<Point> path2 = GetPathToAdjacent(map, size, currentPos, targetD);
+            
+            if (path2 == null || path2.Count == 0) return false;
+            
+            MarkPath(map, path2);
+            currentPos = path2.LastOrDefault();
+            if (currentPos.Equals(default(Point))) return false;
+            
+            currentDropoffs.RemoveAt(0);
         }
 
         // 3. 去終點 (直接踩上去)
@@ -312,5 +329,35 @@ public class MapGenerator
         map[1, 0] = START;
         map[1, size - 1] = END;
         return map;
+    }
+
+    public bool BFSRepairMap(char[,] map, int size)
+    {
+
+        Point start = new Point(-1, -1);
+        Point end = new Point(-1, -1);
+        List<Point> pickups = new List<Point>();
+        List<Point> dropoffs = new List<Point>();
+
+        for (int x = 0; x < size; x++)
+        {
+            for (int y = 0; y < size; y++)
+            {
+                char c = map[x, y];
+                if (c == PATH)
+                {
+                    map[x, y] = EMPTY;
+                }
+                else if (c == START) start = new Point(x, y);
+                else if (c == END) end = new Point(x, y);
+                else if (c == PICKUP) pickups.Add(new Point(x, y));
+                else if (c == DROPOFF) dropoffs.Add(new Point(x, y));
+            }
+        }
+
+        if (start.X == -1 || end.X == -1) return false;
+        if (pickups.Count == 0 || dropoffs.Count == 0) return false; 
+
+        return FindAndMarkPath(map, size, start, end, pickups, dropoffs);
     }
 }
