@@ -246,7 +246,7 @@ public class GAEngine
     private float CalculatePathLength(char[,] map)
     {
         int cnt = 0;
-        foreach (char c in map) if (c == 'X') cnt++;
+        foreach (char c in map) if (IsPath(c) && c != 'S' && c != 'E') cnt++;
         return cnt;
     }
 
@@ -255,14 +255,15 @@ public class GAEngine
         int corners = 0;
         int size = map.GetLength(0);
         
-        // 掃描每一個路徑點 'X'
+        // 掃描每一個路徑點 (排除 S 和 E)
         for (int y = 1; y < size - 1; y++)
         {
             for (int x = 1; x < size - 1; x++)
             {
-                if (map[y, x] == 'X')
+                char c = map[y, x];
+                if (IsPath(c) && c != 'S' && c != 'E')
                 {
-                    // 檢查上下左右是否有路徑 ('X', 'S', 'E' 都算路徑的一部分)
+                    // 檢查上下左右是否有路徑
                     bool u = IsPath(map[y - 1, x]);
                     bool d = IsPath(map[y + 1, x]);
                     bool l = IsPath(map[y, x - 1]);
@@ -284,7 +285,7 @@ public class GAEngine
         return corners;
     }
 
-    private bool IsPath(char c) => c == 'X' || c == 'S' || c == 'E';
+    private bool IsPath(char c) => c == 'X' || c == 'S' || c == 'E' || c == '↑' || c == '↓' || c == '←' || c == '→';
 
     private float CountEmptySpaces(char[,] map)
     {

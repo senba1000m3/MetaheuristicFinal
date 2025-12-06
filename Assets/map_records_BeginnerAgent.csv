@@ -1786,3 +1786,15 @@ O,O,#,X,X,X,D,X,X,O
 O,O,O,O,P,X,X,X,P,O
 O,O,O,O,O,O,O,O,O,O
 
+#BeginnerAgent PlayerData: Attempts=1, Backtracks=649, NearSolves=7, Resets=21, TimeTaken=681, SuggestedDifficulty=6
+O,O,O,O,O,O,O,O,O,O
+O,X,X,X,X,X,X,D,X,E
+O,X,D,#,#,P,X,X,X,O
+O,X,X,P,O,O,O,X,X,O
+O,D,X,X,O,O,#,X,X,O
+O,X,X,X,X,X,X,X,X,O
+O,X,O,X,X,D,O,P,X,O
+O,X,O,X,P,#,#,X,X,O
+S,X,P,X,X,X,X,X,D,O
+O,O,O,O,O,O,O,O,O,O
+

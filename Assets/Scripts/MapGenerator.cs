@@ -6,6 +6,10 @@ public class MapGenerator
 {
     private const char EMPTY = '#';
     private const char PATH = 'X';
+    private const char PATH_UP = '↑';
+    private const char PATH_DOWN = '↓';
+    private const char PATH_LEFT = '←';
+    private const char PATH_RIGHT = '→';
     private const char PICKUP = 'P';
     private const char DROPOFF = 'D';
     private const char OBSTACLE = 'O';
@@ -329,12 +333,22 @@ public class MapGenerator
 
     private void MarkPath(char[,] map, List<Point> path)
     {
-        foreach (var p in path)
+        for (int i = 0; i < path.Count - 1; i++)
         {
+            Point curr = path[i];
+            Point next = path[i+1];
+
             // 只有 Empty 可以變成 Path，保留 S, E, P, D, O
-            if (map[p.X, p.Y] == EMPTY)
+            if (map[curr.X, curr.Y] == EMPTY)
             {
-                map[p.X, p.Y] = PATH;
+                int dx = next.X - curr.X;
+                int dy = next.Y - curr.Y;
+
+                if (dx == 1) map[curr.X, curr.Y] = PATH_DOWN;      // Down (Row increase)
+                else if (dx == -1) map[curr.X, curr.Y] = PATH_UP; // Up (Row decrease)
+                else if (dy == 1) map[curr.X, curr.Y] = PATH_RIGHT;  // Right (Col increase)
+                else if (dy == -1) map[curr.X, curr.Y] = PATH_LEFT; // Left (Col decrease)
+                else map[curr.X, curr.Y] = PATH;
             }
         }
     }
@@ -426,6 +440,7 @@ public class MapGenerator
             path.Add(curr);
             curr = parents[curr];
         }
+        path.Add(start); // Include start point
         path.Reverse();
         return path;
     }
@@ -469,7 +484,7 @@ public class MapGenerator
             for (int y = 0; y < size; y++)
             {
                 char c = map[x, y];
-                if (c == PATH)
+                if (c == PATH || c == PATH_UP || c == PATH_DOWN || c == PATH_LEFT || c == PATH_RIGHT)
                 {
                     map[x, y] = EMPTY;
                 }

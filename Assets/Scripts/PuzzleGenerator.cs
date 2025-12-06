@@ -3,6 +3,10 @@ using UnityEngine;
 public enum TileType{
     Empty,      // #
     Path,       // X
+    PathUp,     // ↑
+    PathDown,   // ↓
+    PathLeft,   // ←
+    PathRight,  // →
     Pickup,     // P
     Dropoff,    // D
     Obstacle,   // O
@@ -38,6 +42,7 @@ public class PuzzleGenerator : MonoBehaviour{
         int rows = map.GetLength(0);
         int cols = map.GetLength(1);
         float xOffset = index * (cols+2) * cellSize;
+        
         for(int y = 0; y < rows; y++){
             for(int x = 0; x < cols; x++){
                 GameObject prefab;
@@ -48,7 +53,18 @@ public class PuzzleGenerator : MonoBehaviour{
                     continue;
                 }
                 Vector3 pos = new Vector3(x * cellSize + xOffset, 0f, -y * cellSize);
-                Instantiate(prefab, pos, Quaternion.identity, puzzleRoot);
+                GameObject instance = Instantiate(prefab, pos, Quaternion.identity, puzzleRoot);
+                
+                // Apply rotation based on direction
+                if (type == TileType.PathRight) {
+                    instance.transform.rotation = Quaternion.FromToRotation(Vector3.right, Vector3.right);
+                } else if (type == TileType.PathLeft) {
+                    instance.transform.rotation = Quaternion.FromToRotation(Vector3.right, Vector3.left);
+                } else if (type == TileType.PathUp) {
+                    instance.transform.rotation = Quaternion.FromToRotation(Vector3.right, Vector3.forward);
+                } else if (type == TileType.PathDown) {
+                    instance.transform.rotation = Quaternion.FromToRotation(Vector3.right, Vector3.back);
+                }
             }
         }
     }
@@ -65,6 +81,10 @@ public class PuzzleGenerator : MonoBehaviour{
                 switch(map[y, x]){
                     case '#': result[y, x] = TileType.Empty; break;
                     case 'X': result[y, x] = TileType.Path; break;
+                    case '↑': result[y, x] = TileType.PathUp; break;
+                    case '↓': result[y, x] = TileType.PathDown; break;
+                    case '←': result[y, x] = TileType.PathLeft; break;
+                    case '→': result[y, x] = TileType.PathRight; break;
                     case 'P': result[y, x] = TileType.Pickup; break;
                     case 'D': result[y, x] = TileType.Dropoff; break;
                     case 'O': result[y, x] = TileType.Obstacle; break;
@@ -84,7 +104,12 @@ public class PuzzleGenerator : MonoBehaviour{
     private GameObject GetPrefab(TileType type){
         switch(type){
             case TileType.Empty: return emptyPrefab;
-            case TileType.Path: return pathPrefab;
+            case TileType.Path: 
+            case TileType.PathUp:
+            case TileType.PathDown:
+            case TileType.PathLeft:
+            case TileType.PathRight:
+                return pathPrefab;
             case TileType.Pickup: return pickupPrefab;
             case TileType.Dropoff: return dropoffPrefab;
             case TileType.Obstacle: return obstaclePrefab;

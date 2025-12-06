@@ -185,7 +185,7 @@ MonoBehaviour:
   pickupsWeight: 1
   orthogonalPickupsWeight: 0
   agents:
-  - {fileID: 6471207169239770985, guid: 21abc4e51deab9a468b74f5f4464ce83, type: 3}
+  - {fileID: 8393314855603263965, guid: 93e870f40198b3c40acbb4da6168b01b, type: 3}
 --- !u!4 &125109946
 Transform:
   m_ObjectHideFlags: 0
