@@ -32,28 +32,46 @@ public class MapGenerator
 
     public char[,] GenerateMap(int size, int pickupCount, int emptyCount)
     {
-        int maxAttempts = 100; // Reduced from 2000 to prevent freezing
+        int maxAttemptsTotal = 3000; // Total attempts allowed before giving up completely
+        int attempts = 0;
 
-        for (int attempt = 0; attempt < maxAttempts; attempt++)
+        // Try to generate with the requested count. If it fails repeatedly, gradually reduce the target.
+        // This ensures we get the highest possible pickup count that is solvable.
+        // Modified: Reduce much slower, or try harder at the target count
+        for (int currentTarget = pickupCount; currentTarget >= 1; currentTarget--)
         {
-            // Randomize pickup count in range [count-1, count+1]
-            // Ensure at least 1
-            int currentPickupCount = _random.Next(pickupCount - 1, pickupCount + 2);
-            if (currentPickupCount < 1) currentPickupCount = 1;
-
-            // If we are failing a lot, try reducing pickup count further
-            if (attempt > 50 && currentPickupCount > 1) {
-                currentPickupCount--;
-            }
-
-            char[,] map = TryGenerateSingleMap(size, currentPickupCount, emptyCount);
+            // Try a reasonable number of times for each target level
+            int attemptsForThisLevel = 50; // Increased from 20
             
-            if (map != null)
+            // If we are at the requested target, try harder
+            if (currentTarget == pickupCount) attemptsForThisLevel = 200; // Increased from 50
+
+            for (int i = 0; i < attemptsForThisLevel; i++)
             {
-                return map;
+                attempts++;
+                if (attempts > maxAttemptsTotal) break;
+
+                // Randomize slightly around the current target [target-1, target+1]
+                int pCount = _random.Next(currentTarget - 1, currentTarget + 2);
+                if (pCount < 1) pCount = 1;
+                
+                // Optimization: If we already failed at higher counts, don't try to go back up above the current target
+                // (unless it's the first iteration)
+                if (currentTarget < pickupCount && pCount > currentTarget) pCount = currentTarget;
+
+                char[,] map = TryGenerateSingleMap(size, pCount, emptyCount);
+                
+                if (map != null)
+                {
+                    UnityEngine.Debug.Log($"[MapGenerator] Map generated! Size: {size}, Pickups: {pCount} (Target: {pickupCount}), Empty: {emptyCount}");
+                    return map;
+                }
             }
+
+            if (attempts > maxAttemptsTotal) break;
         }
 
+        UnityEngine.Debug.LogWarning("[MapGenerator] Failed to generate valid map after many attempts. Returning fallback.");
         return GenerateFallbackMap(size);
     }
 
@@ -83,10 +101,13 @@ public class MapGenerator
         List<Point> pickups = new List<Point>();
         List<Point> dropoffs = new List<Point>();
         
+        // Keep track of all special points to avoid placing them too close to each other
+        List<Point> allSpecialPoints = new List<Point> { startPos, endPos };
+
         for (int i = 0; i < pickupCount; i++)
         {
-            if (!TryPlaceObjectSmart(map, size, PICKUP, pickups)) return null;
-            if (!TryPlaceObjectSmart(map, size, DROPOFF, dropoffs)) return null;
+            if (!TryPlaceObjectSmart(map, size, PICKUP, pickups, allSpecialPoints)) return null;
+            if (!TryPlaceObjectSmart(map, size, DROPOFF, dropoffs, allSpecialPoints)) return null;
         }
 
         // 5. 驗證並生成路徑 (先不放障礙物，確保有路)
@@ -138,24 +159,60 @@ public class MapGenerator
     }
 
     // 放置物件，並檢查上下左右是否有空位 (避免生成死路)
-    private bool TryPlaceObjectSmart(char[,] map, int size, char type, List<Point> tracker)
+    // 同時檢查是否與其他重要點位太近 (避免 Agent 走捷徑導致順序錯誤)
+    private bool TryPlaceObjectSmart(char[,] map, int size, char type, List<Point> tracker, List<Point> allSpecialPoints)
     {
-        for (int i = 0; i < 50; i++) // 嘗試 50 次
+        // Phase 1: Strict placement (Try to avoid adjacency)
+        for (int i = 0; i < 50; i++) 
         {
             int r = _random.Next(1, size - 1);
             int c = _random.Next(1, size - 1);
+            Point p = new Point(r, c);
 
             if (map[r, c] == EMPTY)
             {
-                // 檢查周圍是否有空位 (Empty)
-                if (HasEmptyNeighbor(map, size, r, c))
+                if (!HasEmptyNeighbor(map, size, r, c)) continue;
+
+                bool tooClose = false;
+                foreach (var sp in allSpecialPoints)
                 {
-                    map[r, c] = type;
-                    tracker.Add(new Point(r, c));
-                    return true;
+                    int dist = Math.Abs(sp.X - r) + Math.Abs(sp.Y - c);
+                    if (dist < 2) 
+                    {
+                        tooClose = true;
+                        break;
+                    }
                 }
+                if (tooClose) continue;
+
+                map[r, c] = type;
+                tracker.Add(p);
+                allSpecialPoints.Add(p);
+                return true;
             }
         }
+
+        // Phase 2: Relaxed placement (Allow adjacency if strict fails)
+        // This ensures we can still generate maps with high pickup counts even if they are crowded
+        for (int i = 0; i < 50; i++) 
+        {
+            int r = _random.Next(1, size - 1);
+            int c = _random.Next(1, size - 1);
+            Point p = new Point(r, c);
+
+            if (map[r, c] == EMPTY)
+            {
+                if (!HasEmptyNeighbor(map, size, r, c)) continue;
+
+                // Skip distance check
+                
+                map[r, c] = type;
+                tracker.Add(p);
+                allSpecialPoints.Add(p);
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -196,7 +253,9 @@ public class MapGenerator
         if (pickups == null || dropoffs == null) return false;
         
         // 如果數量不一致，或者根本沒有任務，視為無效地圖
-        if (pickups.Count != dropoffs.Count || pickups.Count == 0) return false;
+        // 修改：允許數量不一致，取最小值進行配對，這樣 GA 突變過程中產生的中間態也能存活
+        int pairCount = Math.Min(pickups.Count, dropoffs.Count);
+        if (pairCount == 0) return false;
         // ==========================================
 
         Point currentPos = start;
@@ -204,10 +263,11 @@ public class MapGenerator
         List<Point> availableDropoffs = new List<Point>(dropoffs);
 
         // 1. 去最近的 P (的鄰居)
-        while (availablePickups.Count > 0)
+        int pairsProcessed = 0;
+        while (pairsProcessed < pairCount)
         {
             // 安全檢查
-            if (availableDropoffs.Count == 0) return false;
+            if (availablePickups.Count == 0 || availableDropoffs.Count == 0) break;
 
             // Find nearest pickup
             Point targetP = FindNearest(currentPos, availablePickups);
@@ -222,6 +282,8 @@ public class MapGenerator
             availablePickups.Remove(targetP);
 
             // 2. 去最近的 D (的鄰居)
+            // 這裡必須去 "任意一個" D，但為了符合 P->D 的邏輯，我們通常會找最近的 D
+            // 這樣就保證了 "取貨 -> 放貨" 的順序
             Point targetD = FindNearest(currentPos, availableDropoffs);
             List<Point> path2 = GetPathToAdjacent(map, size, currentPos, targetD);
             
@@ -232,6 +294,7 @@ public class MapGenerator
             if (currentPos.Equals(default(Point))) return false;
             
             availableDropoffs.Remove(targetD);
+            pairsProcessed++;
         }
 
         // 3. 去終點 (直接踩上去)

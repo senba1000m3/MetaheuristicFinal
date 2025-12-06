@@ -178,8 +178,8 @@ MonoBehaviour:
   mapSize: 10
   T: 100
   intervalSeconds: 7
-  initialDifficulty: 4
-  pathLengthWeight: 0.5
+  initialDifficulty: 5
+  pathLengthWeight: 1
   cornersWeight: 0.2
   emptySpaceWeight: 0.5
   pickupsWeight: 1

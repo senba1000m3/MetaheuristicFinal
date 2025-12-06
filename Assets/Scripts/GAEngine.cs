@@ -4,11 +4,11 @@ using System.Linq;
 
 public class GAEngine
 {
-    public int populationSize = 30; // 建議設為 30~50 即可，300 對 BFS 負擔太重
+    public int populationSize = 300;
     public int generations = 10;
     public int mapSize = 10;
     public float crossoverRate = 0.8f;
-    public float mutationRate = 0.05f; //稍微提高突變率
+    public float mutationRate = 0.3f; //稍微提高突變率
 
     private List<char[,]> population;
     private PlayerModel playerModel;
@@ -51,6 +51,9 @@ public class GAEngine
             }
 
             // Debug.Log($"GA Gen {gen}: Best Score = {maxFit:F4}");
+            if (gen % 1 == 0) {
+                 Debug.Log($"[GAEngine] Gen {gen}: Best Score = {maxFit:F4}");
+            }
 
             if (maxFit > bestFit && bestInGen != null)
             {
@@ -120,6 +123,17 @@ public class GAEngine
     // === 核心修改：Fitness 包含路徑修復 ===
     private float Fitness(char[,] map, Dictionary<string, float> targetMetrics, Dictionary<string, float> _weights)
     {
+        // 0. 檢查 P 和 D 數量是否一致 (Hard Constraint)
+        // 雖然 BFSRepairMap 可以處理不一致，但最終結果必須一致
+        int pCount = 0;
+        int dCount = 0;
+        foreach (char c in map) {
+            if (c == 'P') pCount++;
+            else if (c == 'D') dCount++;
+        }
+        
+        if (pCount != dCount) return 0f; // 數量不一致直接淘汰
+
         // 1. 強制修復路徑 (這是 Hard Constraint)
         // 這裡會重新畫 'X'。如果起點被圍死或無解，回傳 false。
         bool isSolvable = mapGenerator.BFSRepairMap(map, mapSize);
@@ -205,7 +219,10 @@ public class GAEngine
 
                     // 突變選項：空地、障礙、Pickup、Dropoff
                     // === 重點：絕對不要生成 'X' (路徑)，路徑由 BFS 生成 ===
-                    char[] tiles = { '#', '#', '#', 'O', 'P', 'D' }; 
+                    // Modified: Increase probability of P and D
+                    // Old: { '#', '#', '#', 'O', 'P', 'D' }
+                    // New: { '#', '#', 'O', 'P', 'P', 'D', 'D' } -> Higher chance for P/D
+                    char[] tiles = { '#', '#', 'O', 'P', 'P', 'D', 'D' }; 
                     
                     map[y, x] = tiles[Random.Range(0, tiles.Length)];
                 }

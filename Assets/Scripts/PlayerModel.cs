@@ -7,7 +7,7 @@ public class PlayerModel {
             { "PathLength", Mathf.Lerp(8,50,(difficulty-1)/9f) },
             { "Corners", Mathf.Lerp(0,20,(difficulty-1)/9f) },
             { "EmptySpace", Mathf.Lerp(20,5,(difficulty-1)/9f) },
-            { "Pickups", Mathf.Lerp(1,12,(difficulty-1)/9f) },
+            { "Pickups", Mathf.Lerp(1,6,(difficulty-1)/9f) },
             { "OrthogonalPickups", Mathf.Lerp(0,2,(difficulty-1)/9f) }
         };
     }
