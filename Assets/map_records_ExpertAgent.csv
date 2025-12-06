@@ -1,0 +1,36 @@
+#ExpertAgent PlayerData: Attempts=1, Backtracks=3, NearSolves=3, Resets=0, TimeTaken=11, SuggestedDifficulty=5
+#,#,#,#,#,S,#,#,#,#
+O,#,#,P,#,P,#,#,#,O
+O,O,#,#,#,#,#,#,#,O
+O,O,#,O,O,#,#,#,D,O
+O,O,O,O,O,O,O,#,D,O
+O,O,#,P,O,O,O,#,#,O
+O,O,#,D,#,#,#,P,#,O
+O,#,P,D,#,#,#,#,O,O
+O,#,#,D,#,P,#,#,D,O
+#,E,#,#,#,#,#,#,#,#
+
+#ExpertAgent PlayerData: Attempts=1, Backtracks=0, NearSolves=3, Resets=0, TimeTaken=7.5, SuggestedDifficulty=6
+O,O,O,O,O,O,O,O,O,O
+S,X,X,X,X,X,D,#,#,O
+O,#,P,#,#,X,X,X,X,O
+O,O,O,#,#,#,#,#,X,O
+O,#,#,#,#,#,#,#,X,O
+O,O,#,#,#,O,O,#,X,O
+O,#,#,#,#,#,#,#,X,E
+O,#,#,#,#,#,#,#,#,O
+O,#,#,#,#,#,#,#,#,O
+O,O,O,O,O,O,O,O,O,O
+
+#ExpertAgent PlayerData: Attempts=1, Backtracks=0, NearSolves=3, Resets=0, TimeTaken=5, SuggestedDifficulty=6
+O,O,O,O,O,O,O,O,O,O
+O,O,#,O,X,X,X,#,#,O
+O,#,#,D,X,X,X,#,#,O
+O,#,#,#,P,X,X,#,#,O
+S,X,X,X,X,X,X,#,#,E
+O,#,X,X,X,X,X,#,X,E
+O,#,X,#,#,#,#,#,X,O
+O,#,X,X,O,X,X,X,X,O
+O,#,P,X,X,X,D,#,#,O
+O,O,O,O,O,O,O,O,O,O
+

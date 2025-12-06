@@ -23,13 +23,30 @@ public class MapGenerator
         public override int GetHashCode() => (X, Y).GetHashCode();
     }
 
+    // Overload for backward compatibility
     public char[,] GenerateMap(int size)
     {
-        int maxAttempts = 2000;
+        // Default to 1 pickup and ~50% empty space
+        return GenerateMap(size, 1, (int)(size * size * 0.5f));
+    }
+
+    public char[,] GenerateMap(int size, int pickupCount, int emptyCount)
+    {
+        int maxAttempts = 100; // Reduced from 2000 to prevent freezing
 
         for (int attempt = 0; attempt < maxAttempts; attempt++)
         {
-            char[,] map = TryGenerateSingleMap(size);
+            // Randomize pickup count in range [count-1, count+1]
+            // Ensure at least 1
+            int currentPickupCount = _random.Next(pickupCount - 1, pickupCount + 2);
+            if (currentPickupCount < 1) currentPickupCount = 1;
+
+            // If we are failing a lot, try reducing pickup count further
+            if (attempt > 50 && currentPickupCount > 1) {
+                currentPickupCount--;
+            }
+
+            char[,] map = TryGenerateSingleMap(size, currentPickupCount, emptyCount);
             
             if (map != null)
             {
@@ -40,7 +57,7 @@ public class MapGenerator
         return GenerateFallbackMap(size);
     }
 
-    private char[,] TryGenerateSingleMap(int size)
+    private char[,] TryGenerateSingleMap(int size, int pickupCount, int emptyCount)
     {
         char[,] map = new char[size, size];
 
@@ -63,33 +80,61 @@ public class MapGenerator
         map[endPos.X, endPos.Y] = END;
 
         // 4. 隨機生成 Pickup (P) 和 Dropoff (D)
-        // 為了保證有解，先只生成 1 組。若要多組可改成 loop
         List<Point> pickups = new List<Point>();
         List<Point> dropoffs = new List<Point>();
         
-        // 嘗試放置 P，確保周圍至少有一格是空的
-        if (!TryPlaceObjectSmart(map, size, PICKUP, pickups)) return null;
-        // 嘗試放置 D，確保周圍至少有一格是空的
-        if (!TryPlaceObjectSmart(map, size, DROPOFF, dropoffs)) return null;
-
-        // 5. 隨機生成內部障礙物 (O)
-        // 減少障礙物數量以確保路徑暢通 (例如固定 5 個，或 5%)
-        int obstacleCount = 5; 
-        for (int i = 0; i < obstacleCount; i++)
+        for (int i = 0; i < pickupCount; i++)
         {
-            TryPlaceObject(map, size, OBSTACLE);
+            if (!TryPlaceObjectSmart(map, size, PICKUP, pickups)) return null;
+            if (!TryPlaceObjectSmart(map, size, DROPOFF, dropoffs)) return null;
         }
 
-        // 6. 驗證並生成路徑
-        // 複製一份地圖來畫路徑
+        // 5. 驗證並生成路徑 (先不放障礙物，確保有路)
         char[,] solvedMap = (char[,])map.Clone();
         
-        if (FindAndMarkPath(solvedMap, size, startPos, endPos, pickups, dropoffs))
+        if (!FindAndMarkPath(solvedMap, size, startPos, endPos, pickups, dropoffs))
         {
-            return solvedMap; // 成功！回傳畫好 X 的地圖
+            return null;
         }
 
-        return null; // 此配置無解，回傳 null 讓外層迴圈重試
+        // 6. 根據 emptyCount 填充障礙物
+        // 計算目前剩下的 Empty
+        List<Point> emptySpots = new List<Point>();
+        for (int x = 0; x < size; x++)
+        {
+            for (int y = 0; y < size; y++)
+            {
+                if (solvedMap[x, y] == EMPTY)
+                {
+                    emptySpots.Add(new Point(x, y));
+                }
+            }
+        }
+
+        int currentEmpty = emptySpots.Count;
+        if (currentEmpty < emptyCount) return null; // 路徑太長或 P/D 太多，無法滿足 emptyCount
+
+        int obstaclesNeeded = currentEmpty - emptyCount;
+
+        // 隨機選取位置放障礙物
+        // Fisher-Yates Shuffle
+        int n = emptySpots.Count;
+        while (n > 1)
+        {
+            n--;
+            int k = _random.Next(n + 1);
+            Point value = emptySpots[k];
+            emptySpots[k] = emptySpots[n];
+            emptySpots[n] = value;
+        }
+
+        for (int i = 0; i < obstaclesNeeded; i++)
+        {
+            Point p = emptySpots[i];
+            solvedMap[p.X, p.Y] = OBSTACLE;
+        }
+
+        return solvedMap;
     }
 
     // 放置物件，並檢查上下左右是否有空位 (避免生成死路)
@@ -155,17 +200,17 @@ public class MapGenerator
         // ==========================================
 
         Point currentPos = start;
-        List<Point> currentPickups = new List<Point>(pickups);
-        List<Point> currentDropoffs = new List<Point>(dropoffs);
+        List<Point> availablePickups = new List<Point>(pickups);
+        List<Point> availableDropoffs = new List<Point>(dropoffs);
 
         // 1. 去最近的 P (的鄰居)
-        // 因為上面已經檢查過數量相等，這裡可以用 while(Count > 0)
-        while (currentPickups.Count > 0)
+        while (availablePickups.Count > 0)
         {
-            // 安全檢查：雖然開頭檢查過，但為了防止邏輯錯誤，再次確認
-            if (currentDropoffs.Count == 0) return false;
+            // 安全檢查
+            if (availableDropoffs.Count == 0) return false;
 
-            Point targetP = currentPickups[0]; 
+            // Find nearest pickup
+            Point targetP = FindNearest(currentPos, availablePickups);
             List<Point> path = GetPathToAdjacent(map, size, currentPos, targetP);
             
             if (path == null || path.Count == 0) return false;
@@ -174,10 +219,10 @@ public class MapGenerator
             currentPos = path.LastOrDefault(); 
             if (currentPos.Equals(default(Point))) return false;
             
-            currentPickups.RemoveAt(0);
+            availablePickups.Remove(targetP);
 
             // 2. 去最近的 D (的鄰居)
-            Point targetD = currentDropoffs[0];
+            Point targetD = FindNearest(currentPos, availableDropoffs);
             List<Point> path2 = GetPathToAdjacent(map, size, currentPos, targetD);
             
             if (path2 == null || path2.Count == 0) return false;
@@ -186,7 +231,7 @@ public class MapGenerator
             currentPos = path2.LastOrDefault();
             if (currentPos.Equals(default(Point))) return false;
             
-            currentDropoffs.RemoveAt(0);
+            availableDropoffs.Remove(targetD);
         }
 
         // 3. 去終點 (直接踩上去)
@@ -200,6 +245,23 @@ public class MapGenerator
         map[end.X, end.Y] = END;
 
         return true;
+    }
+
+    private Point FindNearest(Point from, List<Point> candidates)
+    {
+        Point best = candidates[0];
+        int minDist = int.MaxValue;
+
+        foreach (var p in candidates)
+        {
+            int dist = Math.Abs(p.X - from.X) + Math.Abs(p.Y - from.Y);
+            if (dist < minDist)
+            {
+                minDist = dist;
+                best = p;
+            }
+        }
+        return best;
     }
 
     private void MarkPath(char[,] map, List<Point> path)

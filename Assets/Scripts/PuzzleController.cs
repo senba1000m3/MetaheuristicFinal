@@ -14,6 +14,8 @@ public class PuzzleController : MonoBehaviour
     public int mapSize = 10;
     public int T = 100;
     public float intervalSeconds = 5f;
+    [Tooltip("初始難度")]
+    public int initialDifficulty = 5;
 
     [Header("GA 適應度分數權重")]
     [Range(0f, 1f)] public float pathLengthWeight = 1f;
@@ -44,7 +46,7 @@ public class PuzzleController : MonoBehaviour
 
         agentDifficulties = new int[agents.Count];
         for (int i = 0; i < agentDifficulties.Length; i++){
-            agentDifficulties[i] = 5;
+            agentDifficulties[i] = initialDifficulty;
         }
         StartCoroutine(GenerateLoop());
     }
@@ -54,7 +56,11 @@ public class PuzzleController : MonoBehaviour
         // 準備初始地圖
         char[][,] currentMaps = new char[agents.Count][,];
         for (int i = 0; i < agents.Count; i++) {
-            currentMaps[i] = mapGenerator.GenerateMap(mapSize);
+            // Use initial difficulty to generate map
+            var targets = PlayerModel.MapDifficultyToTargets(agentDifficulties[i]);
+            int pickups = (int)Mathf.Round(targets["Pickups"]);
+            int empty = (int)Mathf.Round(targets["EmptySpace"]);
+            currentMaps[i] = mapGenerator.GenerateMap(mapSize, pickups, empty);
         }
 
         while (t < T)

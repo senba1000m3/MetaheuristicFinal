@@ -13,6 +13,7 @@ public class GAEngine
     private List<char[,]> population;
     private PlayerModel playerModel;
     private MapGenerator mapGenerator;
+    private Dictionary<string, float> targetMetrics;
 
     public GAEngine(PlayerModel player)
     {
@@ -23,13 +24,13 @@ public class GAEngine
 
     public char[,] Run(int difficulty, Dictionary<string, float> _weights = null)
     {
+        // 取得該難度下的目標數值
+        targetMetrics = PlayerModel.MapDifficultyToTargets(difficulty);
+
         InitializePopulation();
 
         char[,] bestMap = null;
         float bestFit = -1f;
-
-        // 取得該難度下的目標數值
-        Dictionary<string, float> targetMetrics = PlayerModel.MapDifficultyToTargets(difficulty);
 
         for (int gen = 0; gen < generations; gen++)
         {
@@ -98,16 +99,21 @@ public class GAEngine
         }
 
         Debug.LogWarning("GA failed to find a valid map. Generating fallback.");
-        return mapGenerator.GenerateMap(mapSize);
+        int pickups = (int)targetMetrics["Pickups"];
+        int empty = (int)Mathf.Round(targetMetrics["EmptySpace"]);
+        return mapGenerator.GenerateMap(mapSize, (int)Mathf.Round(targetMetrics["Pickups"]), (int)Mathf.Round(targetMetrics["EmptySpace"]));
     }
 
     private void InitializePopulation()
     {
         population.Clear();
+        int pickups = (int)targetMetrics["Pickups"];
+        int empty = (int)targetMetrics["EmptySpace"];
+
         for (int i = 0; i < populationSize; i++)
         {
             // 初始地圖由 Generator 產生，保證初始是合法的
-            population.Add(mapGenerator.GenerateMap(mapSize));
+            population.Add(mapGenerator.GenerateMap(mapSize, (int)Mathf.Round(targetMetrics["Pickups"]), (int)Mathf.Round(targetMetrics["EmptySpace"])));
         }
     }
 
