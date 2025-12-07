@@ -57,13 +57,13 @@ public class PuzzleGenerator : MonoBehaviour{
                 
                 // Apply rotation based on direction
                 if (type == TileType.PathRight) {
-                    instance.transform.rotation = Quaternion.FromToRotation(Vector3.right, Vector3.right);
+                    instance.transform.rotation = Quaternion.FromToRotation(Vector3.left, Vector3.right);
                 } else if (type == TileType.PathLeft) {
-                    instance.transform.rotation = Quaternion.FromToRotation(Vector3.right, Vector3.left);
+                    instance.transform.rotation = Quaternion.FromToRotation(Vector3.left, Vector3.left);
                 } else if (type == TileType.PathUp) {
-                    instance.transform.rotation = Quaternion.FromToRotation(Vector3.right, Vector3.forward);
+                    instance.transform.rotation = Quaternion.FromToRotation(Vector3.left, Vector3.forward);
                 } else if (type == TileType.PathDown) {
-                    instance.transform.rotation = Quaternion.FromToRotation(Vector3.right, Vector3.back);
+                    instance.transform.rotation = Quaternion.FromToRotation(Vector3.left, Vector3.back);
                 }
             }
         }

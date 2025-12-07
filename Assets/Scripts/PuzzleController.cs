@@ -63,6 +63,11 @@ public class PuzzleController : MonoBehaviour
             currentMaps[i] = mapGenerator.GenerateMap(mapSize, pickups, empty);
         }
 
+        if (resultPanel != null)
+        {
+            resultPanel.UpdateGAInfo($"GA Settings: Pop: 300, Gen: 10, Size: {mapSize} Cross: 0.80, Mut: 0.30");
+        }
+
         while (t < T)
         {
             foreach (var obj in GameObject.FindObjectsOfType<GameObject>()) {
@@ -111,6 +116,18 @@ public class PuzzleController : MonoBehaviour
                 char[,] bestMap = ga.Run(agentDifficulties[i], weights);
                 stopwatch.Stop();
                 Debug.Log($"GAEngine.Run 花費時間: {stopwatch.ElapsedMilliseconds} ms");
+                
+                if (resultPanel != null)
+                {
+                    string resultText = $"Iter: {t + 1}/{T}\n" +
+                                        $"Diff: {agentDifficulties[i]}, Att: {stats.attempts}\n" +
+                                        $"Back: {stats.backtracks}, Near: {stats.nearSolves}\n" +
+                                        $"Rst: {stats.resets}\n" +
+                                        $"Time: {stats.timeTaken:F1}, GA Time: {stopwatch.ElapsedMilliseconds}ms\n" +
+                                        $"Best Fit: {ga.BestFitness:F4}";
+                    resultPanel.UpdateResult(i, resultText);
+                }
+
                 currentMaps[i] = bestMap;
             }
 

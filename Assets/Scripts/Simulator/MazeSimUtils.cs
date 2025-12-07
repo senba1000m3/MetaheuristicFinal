@@ -28,7 +28,7 @@ public static class MazeSimUtils {
     }
 
     public static bool IsWalkable(char c){
-        return c == 'X' || c == 'P' || c == 'D' || c == 'S' || c == 'E' || c == '#';
+        return c == 'X' || c == 'P' || c == 'D' || c == 'S' || c == 'E' || c == '#' || c == '↑' || c == '↓' || c == '←' || c == '→';
     }
 
     public static (int x, int y) Find(char[,] maze, char target){

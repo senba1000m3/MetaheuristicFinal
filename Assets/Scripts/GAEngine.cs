@@ -9,6 +9,7 @@ public class GAEngine
     public int mapSize = 10;
     public float crossoverRate = 0.8f;
     public float mutationRate = 0.3f; //稍微提高突變率
+    public float BestFitness { get; private set; }
 
     private List<char[,]> population;
     private PlayerModel playerModel;
@@ -31,6 +32,7 @@ public class GAEngine
 
         char[,] bestMap = null;
         float bestFit = -1f;
+        BestFitness = 0f;
 
         for (int gen = 0; gen < generations; gen++)
         {
@@ -58,6 +60,7 @@ public class GAEngine
             if (maxFit > bestFit && bestInGen != null)
             {
                 bestFit = maxFit;
+                BestFitness = bestFit;
                 bestMap = CloneMap(bestInGen);
             }
 
