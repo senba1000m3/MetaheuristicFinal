@@ -1,0 +1,14 @@
+Iteration,Difficulty,Attempts,Backtracks,NearSolves,Resets,TimeTaken,GATime,BestFitness
+1,5,1,1,0,0,33,0.266,0.7589125
+# Map Data Below
+# O,O,O,O,O,O,O,O,O,O
+# O,O,O,#,O,#,O,D,O,O
+# O,O,D,#,#,O,O,→,↓,O
+# O,→,→,→,→,↓,O,↑,↓,O
+# S,↑,P,O,#,↓,O,↑,↓,O
+# O,O,#,O,#,↓,O,↑,↓,O
+# O,O,O,O,#,↓,O,↑,→,E
+# O,O,O,O,O,→,→,↑,#,O
+# O,O,#,O,O,P,#,#,#,O
+# O,O,O,O,O,O,O,O,O,O
+

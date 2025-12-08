@@ -16,6 +16,7 @@ public class PlayerModel {
     public int nearSolves;   // N
     public int resets;       // R
     public float timeTaken;  // T (秒)
+    public List<Vector2Int> pathHistory = new List<Vector2Int>(); // 紀錄路徑
 
     public int Bthreshold = 3;
     public int Nthreshold = 2;

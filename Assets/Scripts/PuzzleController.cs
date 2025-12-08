@@ -27,6 +27,10 @@ public class PuzzleController : MonoBehaviour
     [Header("使用的 Agent 列表")]
     public List<IPlayerAgent> agents;
 
+    [Header("Agent Visualization")]
+    public GameObject[] agentPrefabs;
+    private List<GameObject> activeVisualAgents = new List<GameObject>();
+
     private string savePath;
     private int t = 0;
     private int[] agentDifficulties;
@@ -48,6 +52,17 @@ public class PuzzleController : MonoBehaviour
         for (int i = 0; i < agentDifficulties.Length; i++){
             agentDifficulties[i] = initialDifficulty;
         }
+
+        // Clear CSV files at start
+        foreach(var agent in agents) {
+            string path = Path.Combine(Application.dataPath, $"map_records_{agent.GetType().Name}.csv");
+            if(File.Exists(path)) File.Delete(path);
+            // Write header
+            using (StreamWriter writer = new StreamWriter(path, false)) {
+                writer.WriteLine("Iteration,Difficulty,Attempts,Backtracks,NearSolves,Resets,TimeTaken,GATime,BestFitness");
+            }
+        }
+
         StartCoroutine(GenerateLoop());
     }
 
@@ -70,6 +85,12 @@ public class PuzzleController : MonoBehaviour
 
         while (t < T)
         {
+            // Clear old visual agents
+            foreach(var agent in activeVisualAgents) {
+                if(agent != null) Destroy(agent);
+            }
+            activeVisualAgents.Clear();
+
             foreach (var obj in GameObject.FindObjectsOfType<GameObject>()) {
                 if (obj.name.StartsWith("PuzzleRoot")) {
                     Destroy(obj);
@@ -81,17 +102,7 @@ public class PuzzleController : MonoBehaviour
 
                 Debug.Log($"Agent {i} starting simulation on map at iteration {t} with difficulty {agentDifficulties[i]}.");
 
-                var stats = agents[i].Simulate(currentMaps[i]);
-
-                PlayerModel model = new PlayerModel(
-                    stats.attempts, 
-                    stats.backtracks, 
-                    stats.nearSolves, 
-                    stats.resets, 
-                    stats.timeTaken
-                );
-
-                SaveMapToCSV(currentMaps[i], model, agents[i].GetType().Name);
+                PlayerModel model = agents[i].Simulate(currentMaps[i]);
 
                 int newDifficulty = model.SuggestDifficulty(agentDifficulties[i]);
                 Debug.Log($"Agent {i} difficulty changed: {agentDifficulties[i]} -> {newDifficulty}");
@@ -120,12 +131,23 @@ public class PuzzleController : MonoBehaviour
                 if (resultPanel != null)
                 {
                     string resultText = $"Iter: {t + 1}/{T}\n" +
-                                        $"Diff: {agentDifficulties[i]}, Att: {stats.attempts}\n" +
-                                        $"Back: {stats.backtracks}, Near: {stats.nearSolves}\n" +
-                                        $"Rst: {stats.resets}\n" +
-                                        $"Time: {stats.timeTaken:F1}, GA Time: {stopwatch.ElapsedMilliseconds}ms\n" +
+                                        $"Diff: {agentDifficulties[i]}, Att: {model.attempts}\n" +
+                                        $"Back: {model.backtracks}, Near: {model.nearSolves}\n" +
+                                        $"Rst: {model.resets}\n" +
+                                        $"Time: {model.timeTaken:F1}, GA Time: {stopwatch.ElapsedMilliseconds}ms\n" +
                                         $"Best Fit: {ga.BestFitness:F4}";
                     resultPanel.UpdateResult(i, resultText);
+                }
+
+                SaveMapToCSV(currentMaps[i], model, agents[i].GetType().Name, t+1, agentDifficulties[i], stopwatch.ElapsedMilliseconds / 1000.0f, ga.BestFitness);
+
+                // Visualization
+                if (agentPrefabs != null && i < agentPrefabs.Length && agentPrefabs[i] != null)
+                {
+                    float xOffset = i * (currentMaps[i].GetLength(1) + 2) * generator.cellSize;
+                    GameObject visualAgent = Instantiate(agentPrefabs[i]);
+                    activeVisualAgents.Add(visualAgent);
+                    StartCoroutine(MoveAgent(visualAgent, model.pathHistory, xOffset, 7f));
                 }
 
                 currentMaps[i] = bestMap;
@@ -150,7 +172,7 @@ public class PuzzleController : MonoBehaviour
     }
 
 
-    void SaveMapToCSV(char[,] map, PlayerModel player, string tag)
+    void SaveMapToCSV(char[,] map, PlayerModel player, string tag, int iteration = -1, int difficulty = -1, float gaTime = 0f, float bestFit = 0f)
     {
         int rows = map.GetLength(0);
         int cols = map.GetLength(1);
@@ -161,24 +183,80 @@ public class PuzzleController : MonoBehaviour
         using (StreamWriter writer = new StreamWriter(agentCsvPath, true))
         {
             if (player != null) {
-                writer.WriteLine($"#{tag} PlayerData: Attempts={player.attempts}, Backtracks={player.backtracks}, NearSolves={player.nearSolves}, Resets={player.resets}, TimeTaken={player.timeTaken}, SuggestedDifficulty={player.SuggestDifficulty(5)}");
+                // Write structured data line for analysis
+                writer.WriteLine($"{iteration},{difficulty},{player.attempts},{player.backtracks},{player.nearSolves},{player.resets},{player.timeTaken},{gaTime},{bestFit}");
+                
+                writer.WriteLine("# Map Data Below");
+                for (int y = 0; y < rows; y++)
+                {
+                    string line = "# ";
+                    for (int x = 0; x < cols; x++)
+                    {
+                        line += map[y, x];
+                        if (x < cols - 1) line += ",";
+                    }
+                    writer.WriteLine(line);
+                }
             }
             else {
-                writer.WriteLine($"#{tag} PlayerData: (no stats, not played)");
-            }
-
-            for (int y = 0; y < rows; y++)
-            {
-                string line = "";
-                for (int x = 0; x < cols; x++)
+                writer.WriteLine($"# Final Map (No Stats)");
+                for (int y = 0; y < rows; y++)
                 {
-                    line += map[y, x];
-                    if (x < cols - 1) line += ",";
+                    string line = "# ";
+                    for (int x = 0; x < cols; x++)
+                    {
+                        line += map[y, x];
+                        if (x < cols - 1) line += ",";
+                    }
+                    writer.WriteLine(line);
                 }
-                writer.WriteLine(line);
+            }
+            writer.WriteLine();
+        }
+    }
+
+    IEnumerator MoveAgent(GameObject agent, List<Vector2Int> path, float xOffset, float duration)
+    {
+        if (path == null || path.Count == 0) yield break;
+
+        // Ensure duration is positive
+        if (duration <= 0) duration = 1f;
+
+        float timePerStep = duration / path.Count;
+        
+        // Initial pos
+        Vector2Int start = path[0];
+        // Assuming map is on X-Z plane, Y is up. 
+        // MapGenerator uses: new Vector3(x * cellSize + xOffset, 0f, -y * cellSize);
+        // We place agent slightly above (0.5f)
+        agent.transform.position = new Vector3(start.x * generator.cellSize + xOffset, 0.5f, -start.y * generator.cellSize);
+
+        for (int i = 0; i < path.Count - 1; i++)
+        {
+            Vector2Int p1 = path[i];
+            Vector2Int p2 = path[i+1];
+            
+            Vector3 startPos = new Vector3(p1.x * generator.cellSize + xOffset, 0.5f, -p1.y * generator.cellSize);
+            Vector3 endPos = new Vector3(p2.x * generator.cellSize + xOffset, 0.5f, -p2.y * generator.cellSize);
+            
+            // Check for teleport (reset)
+            if (Vector2Int.Distance(p1, p2) > 1.5f) // If distance > 1 (diagonal is 1.414, but we don't have diagonals usually, or reset is far)
+            {
+                // Teleport
+                agent.transform.position = endPos;
+                yield return null;
+                continue;
             }
 
-            writer.WriteLine();
+            float elapsed = 0f;
+            while(elapsed < timePerStep)
+            {
+                if (agent == null) yield break; // Safety check
+                agent.transform.position = Vector3.Lerp(startPos, endPos, elapsed / timePerStep);
+                elapsed += Time.deltaTime;
+                yield return null;
+            }
+            if (agent != null) agent.transform.position = endPos;
         }
     }
 }
