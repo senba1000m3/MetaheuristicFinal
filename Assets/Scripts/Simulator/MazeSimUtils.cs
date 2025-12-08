@@ -28,7 +28,7 @@ public static class MazeSimUtils {
     }
 
     public static bool IsWalkable(char c){
-        return c == 'X' || c == 'P' || c == 'D' || c == 'S' || c == 'E' || c == '#' || c == '↑' || c == '↓' || c == '←' || c == '→';
+        return c == 'X' || c == 'S' || c == 'E' || c == '#' || c == '↑' || c == '↓' || c == '←' || c == '→';
     }
 
     public static (int x, int y) Find(char[,] maze, char target){
@@ -44,6 +44,16 @@ public static class MazeSimUtils {
 
     public static float Manhattan(int x1, int y1, int x2, int y2){
         return Mathf.Abs(x1 - x2) + Mathf.Abs(y1 - y2);
+    }
+
+    public static bool IsAdjacent((int x, int y) p1, (int x, int y) p2) {
+        return Manhattan(p1.x, p1.y, p2.x, p2.y) == 1;
+    }
+
+    public static (int, int) GetClosestWalkableNeighbor(char[,] maze, (int x, int y) current, (int x, int y) target) {
+        var neighbors = GetNeighbors(maze, target.x, target.y);
+        if (neighbors.Count == 0) return (-1, -1);
+        return neighbors.OrderBy(n => Manhattan(current.x, current.y, n.x, n.y)).First();
     }
 
     // BFS shortest path (returns list of coords from start to end, inclusive). null if no path.

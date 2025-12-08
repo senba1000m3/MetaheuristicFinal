@@ -35,9 +35,9 @@ public class NormalAgent : IPlayerAgent
         int resets = 0;
         float totalTime = 0f;
         
-        int maxResets = 2;
+        int maxResets = 5; // Increased from 2
         int basePatience = 150;
-        float errorRate = 0.05f; // Reduced from 0.15f to 0.05f
+        float errorRate = 0.1f; // Adjusted to 0.1f (balanced)
 
         List<Vector2Int> recordedPath = new List<Vector2Int>();
 
@@ -60,15 +60,42 @@ public class NormalAgent : IPlayerAgent
                 totalTime += 1.0f; // Normal speed
 
                 // Check Objectives
-                if (currentPickups.Contains(current)) {
-                    currentPickups.Remove(current);
-                    hasPackage = true;
-                    steps = 0; // Reset patience
-                } else if (currentDropoffs.Contains(current)) {
-                    currentDropoffs.Remove(current);
-                    hasPackage = false;
-                    steps = 0;
-                } else if (current == end && currentPickups.Count == 0 && currentDropoffs.Count == 0) {
+                bool actionTaken = false;
+
+                // 1. Drop
+                if (hasPackage) {
+                    int dIndex = currentDropoffs.FindIndex(d => MazeSimUtils.IsAdjacent(current, d));
+                    if (dIndex != -1) {
+                        currentDropoffs.RemoveAt(dIndex);
+                        hasPackage = false;
+                        steps = 0; // Reset patience
+                        actionTaken = true;
+                    }
+                }
+
+                // 2. Pick
+                if (!hasPackage) {
+                    int pIndex = currentPickups.FindIndex(p => MazeSimUtils.IsAdjacent(current, p));
+                    if (pIndex != -1) {
+                        currentPickups.RemoveAt(pIndex);
+                        hasPackage = true;
+                        steps = 0; // Reset patience
+                        actionTaken = true;
+                    }
+                }
+
+                // 3. Drop again (Pick -> Drop)
+                if (hasPackage) {
+                    int dIndex = currentDropoffs.FindIndex(d => MazeSimUtils.IsAdjacent(current, d));
+                    if (dIndex != -1) {
+                        currentDropoffs.RemoveAt(dIndex);
+                        hasPackage = false;
+                        steps = 0; // Reset patience
+                        actionTaken = true;
+                    }
+                }
+
+                if (current == end && currentPickups.Count == 0 && currentDropoffs.Count == 0) {
                     solved = true;
                     break;
                 }
@@ -77,6 +104,11 @@ public class NormalAgent : IPlayerAgent
                 (int, int) target = end;
                 if (!hasPackage && currentPickups.Count > 0) target = GetNearest(current, currentPickups);
                 else if (hasPackage && currentDropoffs.Count > 0) target = GetNearest(current, currentDropoffs);
+
+                // Adjust target to walkable neighbor if it's not end (End is walkable)
+                if (target != end) {
+                    target = MazeSimUtils.GetClosestWalkableNeighbor(maze, current, target);
+                }
 
                 // Move Logic (BFS with Error)
                 List<(int, int)> path = MazeSimUtils.BFS(maze, current, target);
@@ -128,9 +160,10 @@ public class NormalAgent : IPlayerAgent
 
             resets++;
             attempts++;
-            errorRate *= 0.8f; // Learn: Reduce error rate
+            errorRate *= 0.85f; // Learn: Reduce error rate (balanced learning)
             
-            if (currentPickups.Count == 0 && currentDropoffs.Count == 0) nearSolves++;
+            int remaining = currentPickups.Count + currentDropoffs.Count;
+            if (remaining > 0 && remaining <= 2) nearSolves++;
         }
 
         PlayerModel model = new PlayerModel(attempts, backtracks, nearSolves, resets, totalTime);

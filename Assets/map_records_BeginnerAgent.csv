@@ -1,14 +1,196 @@
 Iteration,Difficulty,Attempts,Backtracks,NearSolves,Resets,TimeTaken,GATime,BestFitness
-1,4,1,0,0,0,60,0.273,0.8650793
+1,4,1,0,0,0,98,0.278,0.8888889
 # Map Data Below
 # O,O,O,O,O,O,O,O,O,O
-# S,→,↓,D,O,#,#,O,→,E
-# O,O,↓,→,→,↓,#,#,↑,O
-# O,O,→,↑,O,↓,O,O,↑,O
-# O,O,P,O,O,↓,O,O,↑,O
-# O,O,O,O,#,↓,#,#,↑,O
-# O,#,#,O,D,→,→,→,↑,O
-# O,O,#,O,#,P,#,O,O,O
+# O,O,#,O,O,O,#,O,#,O
+# O,O,D,→,→,↓,P,O,D,O
+# S,→,→,↑,#,→,→,→,↓,O
+# O,O,#,P,#,#,↓,←,←,O
+# O,O,O,#,#,O,↓,O,#,O
+# O,O,↓,←,←,←,←,O,→,E
+# O,O,↓,D,#,#,P,O,↑,O
+# O,#,→,→,→,→,→,→,↑,O
+# O,O,O,O,O,O,O,O,O,O
+
+2,3,1,0,0,0,60,0.134,0.7789853
+# Map Data Below
+# O,O,O,O,O,O,O,O,O,O
+# O,O,#,#,O,#,D,#,#,O
+# O,O,O,#,O,O,→,↓,O,O
+# O,#,#,O,#,O,↑,↓,O,O
+# S,→,↓,O,O,→,↑,↓,#,O
+# O,D,→,→,→,↑,P,↓,O,O
+# O,#,P,O,O,↓,←,←,→,E
+# O,#,O,#,O,→,→,→,↑,O
+# O,#,#,O,O,P,O,D,O,O
+# O,O,O,O,O,O,O,O,O,O
+
+3,2,1,3,0,0,62,0.144,0.715368
+# Map Data Below
+# O,O,O,O,O,O,O,O,O,O
+# O,O,#,#,#,O,O,O,#,O
+# O,O,O,D,O,O,#,O,#,O
+# O,O,O,→,→,↓,#,#,→,E
+# O,O,O,↑,O,↓,D,#,↑,O
+# O,O,O,↑,O,→,→,→,↑,O
+# O,O,#,↑,#,P,O,#,#,O
+# O,P,O,↑,O,#,O,#,O,O
+# S,→,→,↑,#,O,#,O,O,O
+# O,O,O,O,O,O,O,O,O,O
+
+4,2,1,0,0,0,34,0.122,0.715368
+# Map Data Below
+# O,O,O,O,O,O,O,O,O,O
+# S,→,→,→,→,→,→,↓,#,O
+# O,O,O,O,#,#,O,↓,#,O
+# O,O,O,#,O,O,O,↓,#,O
+# O,#,#,O,O,O,O,↓,O,O
+# O,#,#,#,O,O,O,↓,D,O
+# O,#,O,#,O,#,O,→,→,E
+# O,#,O,O,#,O,O,#,P,O
+# O,O,O,O,O,O,#,O,O,O
+# O,O,O,O,O,O,O,O,O,O
+
+5,2,1,0,0,0,34,0.132,0.6997436
+# Map Data Below
+# O,O,O,O,O,O,O,O,O,O
+# O,O,O,O,O,#,O,O,O,O
+# O,O,#,#,O,D,#,#,O,O
+# S,→,→,→,→,→,→,→,↓,O
+# O,O,O,O,#,P,O,O,↓,O
+# O,#,#,O,#,O,#,#,↓,O
+# O,O,O,#,O,O,#,O,↓,O
+# O,O,O,O,O,O,O,#,↓,O
+# O,#,#,#,#,O,O,O,→,E
+# O,O,O,O,O,O,O,O,O,O
+
+6,1,3,31,0,2,204,0.112,0.7654321
+# Map Data Below
+# O,O,O,O,O,O,O,O,O,O
+# O,O,#,O,O,#,O,O,#,O
+# O,O,#,O,O,#,O,O,#,O
+# O,O,P,O,D,#,#,#,→,E
+# O,#,→,→,→,→,→,→,↑,O
+# O,D,↑,←,O,#,O,O,#,O
+# S,→,→,↑,P,O,#,O,#,O
+# O,O,O,#,O,O,O,#,O,O
+# O,O,O,#,O,O,O,#,O,O
+# O,O,O,O,O,O,O,O,O,O
+
+7,2,1,0,0,0,26,0.146,0.715368
+# Map Data Below
+# O,O,O,O,O,O,O,O,O,O
+# S,→,→,→,→,↓,D,O,O,O
+# O,#,#,O,P,→,→,→,→,E
+# O,O,O,O,#,O,#,O,O,O
+# O,O,O,O,#,#,O,O,O,O
+# O,O,O,O,O,#,#,#,O,O
+# O,#,#,O,#,O,#,#,#,O
+# O,#,O,#,O,O,#,O,#,O
 # O,O,O,O,O,O,O,O,#,O
+# O,O,O,O,O,O,O,O,O,O
+
+8,2,1,0,0,0,34,0.126,0.6964285
+# Map Data Below
+# O,O,O,O,O,O,O,O,O,O
+# O,O,O,#,O,#,O,#,O,O
+# O,O,#,O,O,D,O,O,O,O
+# S,→,→,→,→,→,→,→,↓,O
+# O,P,O,#,O,O,#,O,↓,O
+# O,O,O,#,O,O,#,#,↓,O
+# O,O,#,O,#,O,O,#,↓,O
+# O,O,#,O,#,O,O,O,↓,O
+# O,O,#,#,O,#,#,O,→,E
+# O,O,O,O,O,O,O,O,O,O
+
+9,2,1,0,0,0,38,0.127,0.6964285
+# Map Data Below
+# O,O,O,O,O,O,O,O,O,O
+# O,O,#,#,O,O,O,O,O,O
+# S,→,→,→,→,→,→,↓,P,O
+# O,O,#,O,O,D,↓,←,→,E
+# O,O,O,#,O,O,→,→,↑,O
+# O,#,#,#,O,#,#,O,O,O
+# O,O,O,#,#,O,O,#,O,O
+# O,O,O,#,O,O,O,O,O,O
+# O,O,O,#,#,#,#,#,O,O
+# O,O,O,O,O,O,O,O,O,O
+
+10,3,1,0,0,0,30,0.131,0.7976188
+# Map Data Below
+# O,O,O,O,O,O,O,O,O,O
+# O,O,#,#,O,O,#,O,#,O
+# O,#,O,O,#,O,#,O,→,E
+# S,→,→,→,→,→,→,↓,↑,O
+# O,#,P,O,O,O,O,↓,↑,O
+# O,#,O,O,O,O,#,→,↑,O
+# O,O,O,O,#,O,O,D,#,O
+# O,#,#,O,O,O,O,#,O,O
+# O,O,#,O,#,#,O,O,O,O
+# O,O,O,O,O,O,O,O,O,O
+
+11,2,1,10,0,0,70,0.136,0.6997436
+# Map Data Below
+# O,O,O,O,O,O,O,O,O,O
+# S,→,→,↓,O,#,O,#,O,O
+# O,P,↓,←,O,#,#,O,O,O
+# O,O,↓,D,#,O,O,#,#,O
+# O,O,↓,O,#,O,#,O,O,O
+# O,O,↓,#,O,#,#,O,#,O
+# O,O,↓,D,O,#,O,#,→,E
+# O,O,→,→,→,→,→,→,↑,O
+# O,O,P,O,#,O,#,O,O,O
+# O,O,O,O,O,O,O,O,O,O
+
+12,1,1,4,0,0,50,0.133,0.7654321
+# Map Data Below
+# O,O,O,O,O,O,O,O,O,O
+# O,O,O,#,O,#,O,#,#,O
+# O,#,O,#,#,#,#,O,O,O
+# O,D,→,→,↓,O,#,O,O,O
+# S,→,↑,P,↓,O,O,O,#,O
+# O,O,O,#,↓,O,#,O,#,O
+# O,O,O,#,↓,#,#,O,O,O
+# O,#,O,O,→,→,→,→,→,E
+# O,O,O,O,P,O,O,O,D,O
+# O,O,O,O,O,O,O,O,O,O
+
+13,2,1,0,0,0,22,0.128,0.715368
+# Map Data Below
+# O,O,O,O,O,O,O,O,O,O
+# O,O,#,#,#,O,#,O,O,O
+# O,O,#,O,O,O,#,O,#,O
+# O,O,O,O,#,O,#,O,#,O
+# O,O,#,O,#,P,→,→,→,E
+# S,→,→,→,→,→,↑,D,#,O
+# O,O,O,#,#,#,#,#,O,O
+# O,O,O,O,O,O,#,O,O,O
+# O,O,O,#,O,O,O,O,O,O
+# O,O,O,O,O,O,O,O,O,O
+
+14,2,1,0,0,0,34,0.133,0.6964285
+# Map Data Below
+# O,O,O,O,O,O,O,O,O,O
+# O,O,O,O,O,O,#,O,P,O
+# O,O,#,O,#,#,O,D,→,E
+# O,O,O,O,#,#,#,O,↑,O
+# O,#,O,O,#,O,O,#,↑,O
+# O,O,#,O,O,#,#,O,↑,O
+# O,O,#,O,#,#,O,O,↑,O
+# S,→,→,→,→,→,→,→,↑,O
+# O,#,#,O,O,O,O,O,O,O
+# O,O,O,O,O,O,O,O,O,O
+
+15,1,4,37,0,3,278,0.108,0.7654321
+# Map Data Below
+# O,O,O,O,O,O,O,O,O,O
+# O,#,O,O,#,#,#,O,O,O
+# O,O,O,#,→,→,→,→,→,E
+# O,#,O,#,↑,P,#,#,O,O
+# O,O,#,D,↑,←,O,O,O,O
+# S,→,→,→,→,↑,#,O,#,O
+# O,O,O,O,O,O,O,#,#,O
+# O,O,O,O,O,O,#,O,#,O
+# O,O,O,O,O,#,O,O,#,O
 # O,O,O,O,O,O,O,O,O,O
 

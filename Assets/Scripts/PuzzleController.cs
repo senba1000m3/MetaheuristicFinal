@@ -16,7 +16,12 @@ public class PuzzleController : MonoBehaviour
     public float intervalSeconds = 5f;
     [Tooltip("初始難度")]
     public int initialDifficulty = 5;
+       [Tooltip("是否啟用 GA 與玩家模型調整難度 (若關閉則一直生成相同難度的隨機地圖)")]
+    public bool enableAdaptiveGA = true;
 
+    [Tooltip("是否只根據時間調整難度 (忽略嘗試次數、回溯等)")]
+    public bool timeOnlyMode = false;
+    
     [Header("GA 適應度分數權重")]
     [Range(0f, 1f)] public float pathLengthWeight = 1f;
     [Range(0f, 1f)] public float cornersWeight = 1f;
@@ -96,6 +101,7 @@ public class PuzzleController : MonoBehaviour
                     Destroy(obj);
                 }
             }
+            generator.ClearCache();
 
             for (int i = 0; i < agents.Count; i++) {
                 generator.GenerateFromCharArray(currentMaps[i], i);
@@ -104,29 +110,47 @@ public class PuzzleController : MonoBehaviour
 
                 PlayerModel model = agents[i].Simulate(currentMaps[i]);
 
-                int newDifficulty = model.SuggestDifficulty(agentDifficulties[i]);
-                Debug.Log($"Agent {i} difficulty changed: {agentDifficulties[i]} -> {newDifficulty}");
-                agentDifficulties[i] = newDifficulty;
+                char[,] nextMap;
+                float gaTime = 0f;
+                float bestFitness = 0f;
 
-                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-                GAEngine ga = new GAEngine(model){
-                    populationSize = 300,
-                    generations = 10,
-                    crossoverRate = 0.8f,
-                    mapSize = mapSize
-                };
+                if (enableAdaptiveGA)
+                {
+                    int newDifficulty = model.SuggestDifficulty(agentDifficulties[i], timeOnlyMode);
+                    Debug.Log($"Agent {i} difficulty changed: {agentDifficulties[i]} -> {newDifficulty}");
+                    agentDifficulties[i] = newDifficulty;
 
-                var weights = new Dictionary<string, float> {
-                    { "PathLength", pathLengthWeight },
-                    { "Corners", cornersWeight },
-                    { "EmptySpace", emptySpaceWeight },
-                    { "Pickups", pickupsWeight },
-                    { "OrthogonalPickups", orthogonalPickupsWeight }
-                };
+                    var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+                    GAEngine ga = new GAEngine(model){
+                        populationSize = 300,
+                        generations = 10,
+                        crossoverRate = 0.8f,
+                        mapSize = mapSize
+                    };
 
-                char[,] bestMap = ga.Run(agentDifficulties[i], weights);
-                stopwatch.Stop();
-                Debug.Log($"GAEngine.Run 花費時間: {stopwatch.ElapsedMilliseconds} ms");
+                    var weights = new Dictionary<string, float> {
+                        { "PathLength", pathLengthWeight },
+                        { "Corners", cornersWeight },
+                        { "EmptySpace", emptySpaceWeight },
+                        { "Pickups", pickupsWeight },
+                        { "OrthogonalPickups", orthogonalPickupsWeight }
+                    };
+
+                    nextMap = ga.Run(agentDifficulties[i], weights);
+                    stopwatch.Stop();
+                    gaTime = stopwatch.ElapsedMilliseconds;
+                    bestFitness = ga.BestFitness;
+                    Debug.Log($"GAEngine.Run 花費時間: {gaTime} ms");
+                }
+                else
+                {
+                    // 不使用 GA，直接生成相同難度的新地圖
+                    var targets = PlayerModel.MapDifficultyToTargets(agentDifficulties[i]);
+                    MapGenerator mapGen = new MapGenerator();
+                    nextMap = mapGen.GenerateMap(mapSize, (int)Mathf.Round(targets["Pickups"]), (int)Mathf.Round(targets["EmptySpace"]));
+                    gaTime = 0f;
+                    bestFitness = 0f;
+                }
                 
                 if (resultPanel != null)
                 {
@@ -134,12 +158,12 @@ public class PuzzleController : MonoBehaviour
                                         $"Diff: {agentDifficulties[i]}, Att: {model.attempts}\n" +
                                         $"Back: {model.backtracks}, Near: {model.nearSolves}\n" +
                                         $"Rst: {model.resets}\n" +
-                                        $"Time: {model.timeTaken:F1}, GA Time: {stopwatch.ElapsedMilliseconds}ms\n" +
-                                        $"Best Fit: {ga.BestFitness:F4}";
+                                        $"Time: {model.timeTaken:F1}, GA Time: {gaTime}ms\n" +
+                                        $"Best Fit: {bestFitness:F4}";
                     resultPanel.UpdateResult(i, resultText);
                 }
 
-                SaveMapToCSV(currentMaps[i], model, agents[i].GetType().Name, t+1, agentDifficulties[i], stopwatch.ElapsedMilliseconds / 1000.0f, ga.BestFitness);
+                SaveMapToCSV(currentMaps[i], model, agents[i].GetType().Name, t+1, agentDifficulties[i], gaTime / 1000.0f, bestFitness);
 
                 // Visualization
                 if (agentPrefabs != null && i < agentPrefabs.Length && agentPrefabs[i] != null)
@@ -147,10 +171,10 @@ public class PuzzleController : MonoBehaviour
                     float xOffset = i * (currentMaps[i].GetLength(1) + 2) * generator.cellSize;
                     GameObject visualAgent = Instantiate(agentPrefabs[i]);
                     activeVisualAgents.Add(visualAgent);
-                    StartCoroutine(MoveAgent(visualAgent, model.pathHistory, xOffset, 7f));
+                    StartCoroutine(agents[i].MoveAgent(visualAgent, model.pathHistory, xOffset, 7f, currentMaps[i], i, generator));
                 }
 
-                currentMaps[i] = bestMap;
+                currentMaps[i] = nextMap;
             }
 
             t++;
@@ -215,48 +239,5 @@ public class PuzzleController : MonoBehaviour
         }
     }
 
-    IEnumerator MoveAgent(GameObject agent, List<Vector2Int> path, float xOffset, float duration)
-    {
-        if (path == null || path.Count == 0) yield break;
-
-        // Ensure duration is positive
-        if (duration <= 0) duration = 1f;
-
-        float timePerStep = duration / path.Count;
-        
-        // Initial pos
-        Vector2Int start = path[0];
-        // Assuming map is on X-Z plane, Y is up. 
-        // MapGenerator uses: new Vector3(x * cellSize + xOffset, 0f, -y * cellSize);
-        // We place agent slightly above (0.5f)
-        agent.transform.position = new Vector3(start.x * generator.cellSize + xOffset, 0.5f, -start.y * generator.cellSize);
-
-        for (int i = 0; i < path.Count - 1; i++)
-        {
-            Vector2Int p1 = path[i];
-            Vector2Int p2 = path[i+1];
-            
-            Vector3 startPos = new Vector3(p1.x * generator.cellSize + xOffset, 0.5f, -p1.y * generator.cellSize);
-            Vector3 endPos = new Vector3(p2.x * generator.cellSize + xOffset, 0.5f, -p2.y * generator.cellSize);
-            
-            // Check for teleport (reset)
-            if (Vector2Int.Distance(p1, p2) > 1.5f) // If distance > 1 (diagonal is 1.414, but we don't have diagonals usually, or reset is far)
-            {
-                // Teleport
-                agent.transform.position = endPos;
-                yield return null;
-                continue;
-            }
-
-            float elapsed = 0f;
-            while(elapsed < timePerStep)
-            {
-                if (agent == null) yield break; // Safety check
-                agent.transform.position = Vector3.Lerp(startPos, endPos, elapsed / timePerStep);
-                elapsed += Time.deltaTime;
-                yield return null;
-            }
-            if (agent != null) agent.transform.position = endPos;
-        }
-    }
+    // MoveAgent moved to IPlayerAgent
 }

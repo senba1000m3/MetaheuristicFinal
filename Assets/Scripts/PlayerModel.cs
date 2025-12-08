@@ -34,7 +34,14 @@ public class PlayerModel {
         this.timeTaken = timeTaken;
     }
 
-    public float CalculateSoftConstraintScore(){
+    public float CalculateSoftConstraintScore(bool timeOnlyMode = false){
+        if (timeOnlyMode) {
+            // In time only mode, we assume perfect scores for other metrics (max bonus)
+            // and only penalize based on time.
+            // Max bonuses: B=10, N=5, R=5 -> Total 20.
+            return 20f - (timeTaken * WT);
+        }
+
         int B = backtracks - 1;
         float Ss = 0f;
 
@@ -61,14 +68,15 @@ public class PlayerModel {
         return Ss;
     }
 
-    public int SuggestDifficulty(int currentDifficulty){
+    public int SuggestDifficulty(int currentDifficulty, bool timeOnlyMode = false){
         int maxAttempts = 5;
+        
         if (attempts > maxAttempts) {
             return Mathf.Max(1, currentDifficulty - 1);
         }
 
         // Soft Constraint: 根據分數調整
-        float Ss = CalculateSoftConstraintScore();
+        float Ss = CalculateSoftConstraintScore(timeOnlyMode);
         if (Ss > 5) {
             return Mathf.Min(10, currentDifficulty + 1);
         }

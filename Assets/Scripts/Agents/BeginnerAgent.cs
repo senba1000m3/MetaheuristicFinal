@@ -36,10 +36,11 @@ public class BeginnerAgent : IPlayerAgent
         int resets = 0;
         float totalTime = 0f;
         
-        int maxResets = 5;
+        int maxResets = 10; // Increased from 5
         int patience = 30; // Very low patience
 
         List<Vector2Int> recordedPath = new List<Vector2Int>();
+        HashSet<(int, int)> tabooPositions = new HashSet<(int, int)>(); // Memory of stuck positions
 
         // Simulation Loop
         while (resets <= maxResets)
@@ -63,24 +64,56 @@ public class BeginnerAgent : IPlayerAgent
                 totalTime += 2.0f; // Slow thinker
 
                 // 1. Check Objectives
-                if (currentPickups.Contains(current))
-                {
-                    currentPickups.Remove(current);
-                    hasPackage = true;
-                    visitedThisAttempt.Clear(); // Reset visited for new segment
-                    steps = 0; // Reset patience on progress
+                bool actionTaken = false;
+
+                // 1. Drop
+                if (hasPackage) {
+                    int dIndex = currentDropoffs.FindIndex(d => MazeSimUtils.IsAdjacent(current, d));
+                    if (dIndex != -1) {
+                        currentDropoffs.RemoveAt(dIndex);
+                        hasPackage = false;
+                        visitedThisAttempt.Clear();
+                        steps = 0;
+                        actionTaken = true;
+                    }
                 }
-                else if (currentDropoffs.Contains(current))
-                {
-                    currentDropoffs.Remove(current);
-                    hasPackage = false;
-                    visitedThisAttempt.Clear();
-                    steps = 0;
+
+                // 2. Pick
+                if (!hasPackage) {
+                    int pIndex = currentPickups.FindIndex(p => MazeSimUtils.IsAdjacent(current, p));
+                    if (pIndex != -1) {
+                        currentPickups.RemoveAt(pIndex);
+                        hasPackage = true;
+                        visitedThisAttempt.Clear();
+                        steps = 0;
+                        actionTaken = true;
+                    }
                 }
-                else if (current == end && currentPickups.Count == 0 && currentDropoffs.Count == 0)
+
+                // 3. Drop again
+                if (hasPackage) {
+                    int dIndex = currentDropoffs.FindIndex(d => MazeSimUtils.IsAdjacent(current, d));
+                    if (dIndex != -1) {
+                        currentDropoffs.RemoveAt(dIndex);
+                        hasPackage = false;
+                        visitedThisAttempt.Clear();
+                        steps = 0;
+                        actionTaken = true;
+                    }
+                }
+
+                if (current == end)
                 {
-                    solved = true;
-                    break;
+                    if (currentPickups.Count == 0 && currentDropoffs.Count == 0)
+                    {
+                        solved = true;
+                        break;
+                    }
+                    else
+                    {
+                        // Prematurely reached end -> Reset
+                        break;
+                    }
                 }
 
                 // 2. Determine Target (Naive)
@@ -90,7 +123,17 @@ public class BeginnerAgent : IPlayerAgent
 
                 // 3. Move Logic (Naive Greedy)
                 var neighbors = MazeSimUtils.GetNeighbors(maze, current.x, current.y);
-                if (neighbors.Count == 0) break; // Stuck
+                
+                // Filter out taboo positions (Memory)
+                var safeNeighbors = neighbors.Where(n => !tabooPositions.Contains(n)).ToList();
+                // If all neighbors are taboo, we are forced to use them (or stuck)
+                if (safeNeighbors.Count > 0) neighbors = safeNeighbors;
+
+                if (neighbors.Count == 0) {
+                    // Stuck completely
+                    tabooPositions.Add(current); // Remember this bad spot
+                    break; 
+                }
 
                 // Filter out immediate backtrack if possible
                 var validNeighbors = neighbors.Where(n => !visitedThisAttempt.Contains(n)).ToList();
@@ -127,7 +170,8 @@ public class BeginnerAgent : IPlayerAgent
             attempts++;
             
             // Check near solve
-            if (currentPickups.Count == 0 && currentDropoffs.Count == 0) nearSolves++;
+            int remaining = currentPickups.Count + currentDropoffs.Count;
+            if (remaining > 0 && remaining <= 2) nearSolves++;
         }
 
         PlayerModel model = new PlayerModel(attempts, backtracks, nearSolves, resets, totalTime);

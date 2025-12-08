@@ -98,7 +98,7 @@ public class GAEngine
         if (bestMap != null)
         {
             // 雖然 Fitness 跑過，但為了保險再修一次
-            if (mapGenerator.BFSRepairMap(bestMap, mapSize))
+            if (MapUtils.BFSRepairMap(bestMap, mapSize))
             {
                 return bestMap;
             }
@@ -139,7 +139,7 @@ public class GAEngine
 
         // 1. 強制修復路徑 (這是 Hard Constraint)
         // 這裡會重新畫 'X'。如果起點被圍死或無解，回傳 false。
-        bool isSolvable = mapGenerator.BFSRepairMap(map, mapSize);
+        bool isSolvable = MapUtils.BFSRepairMap(map, mapSize);
 
         if (!isSolvable)
         {

@@ -176,9 +176,11 @@ MonoBehaviour:
   generator: {fileID: 125109944}
   resultPanel: {fileID: 125109947}
   mapSize: 10
-  T: 1000
+  T: 100
   intervalSeconds: 7
   initialDifficulty: 5
+  enableAdaptiveGA: 1
+  timeOnlyMode: 0
   pathLengthWeight: 1
   cornersWeight: 0.2
   emptySpaceWeight: 0.5

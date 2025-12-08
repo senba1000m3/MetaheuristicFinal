@@ -29,6 +29,21 @@ public class PuzzleGenerator : MonoBehaviour{
     public float cellSize = 1f;
 
     private Transform puzzleRoot;
+    private System.Collections.Generic.Dictionary<string, GameObject> instantiatedObjects = new System.Collections.Generic.Dictionary<string, GameObject>();
+
+    public void ClearCache() {
+        instantiatedObjects.Clear();
+    }
+
+    public void RemoveObjectAt(int agentIndex, int x, int y){
+        string key = $"{agentIndex}_{x}_{y}";
+        if(instantiatedObjects.ContainsKey(key)){
+            if(instantiatedObjects[key] != null){
+                Destroy(instantiatedObjects[key]);
+            }
+            instantiatedObjects.Remove(key);
+        }
+    }
 
     public void GenerateFromCharArray(char[,] map, int index = 0){
         TileType[,] converted = ConvertCharMap(map);
@@ -54,6 +69,10 @@ public class PuzzleGenerator : MonoBehaviour{
                 }
                 Vector3 pos = new Vector3(x * cellSize + xOffset, 0f, -y * cellSize);
                 GameObject instance = Instantiate(prefab, pos, Quaternion.identity, puzzleRoot);
+                
+                string key = $"{index}_{x}_{y}";
+                if (instantiatedObjects.ContainsKey(key)) instantiatedObjects.Remove(key);
+                instantiatedObjects[key] = instance;
                 
                 // Apply rotation based on direction
                 if (type == TileType.PathRight) {
