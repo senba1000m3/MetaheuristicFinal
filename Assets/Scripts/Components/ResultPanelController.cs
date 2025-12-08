@@ -6,6 +6,7 @@ public class ResultPanelController : MonoBehaviour
     public Text beginnerText;
     public Text normalText;
     public Text expertText;
+    public Text playerText;
     public Text gaInfoText;
 
     // 讓你在 Inspector 拖入三個 Text
@@ -15,13 +16,16 @@ public class ResultPanelController : MonoBehaviour
         switch(agentIndex)
         {
             case 0:
-                beginnerText.text = result;
+                if (beginnerText != null) beginnerText.text = result;
                 break;
             case 1:
-                normalText.text = result;
+                if (normalText != null) normalText.text = result;
                 break;
             case 2:
-                expertText.text = result;
+                if (expertText != null) expertText.text = result;
+                break;
+            case 3:
+                if (playerText != null) playerText.text = result;
                 break;
         }
     }

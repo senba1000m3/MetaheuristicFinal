@@ -1,4 +1,5 @@
 using UnityEngine; 
+using UnityEngine.UI;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -21,6 +22,12 @@ public class PuzzleController : MonoBehaviour
 
     [Tooltip("是否只根據時間調整難度 (忽略嘗試次數、回溯等)")]
     public bool timeOnlyMode = false;
+
+    [Tooltip("是否啟用玩家遊玩模式 (無視 Agents)")]
+    public bool playMode = false;
+    public GameObject humanPlayerPrefab;
+    [Tooltip("指定場景中的 UI Text 物件來顯示計時器")]
+    public Text playerTimerText;
     
     [Header("GA 適應度分數權重")]
     [Range(0f, 1f)] public float pathLengthWeight = 1f;
@@ -73,6 +80,12 @@ public class PuzzleController : MonoBehaviour
 
     IEnumerator GenerateLoop()
     {
+        if (playMode)
+        {
+            yield return StartCoroutine(PlayModeLoop());
+            yield break;
+        }
+
         // 準備初始地圖
         char[][,] currentMaps = new char[agents.Count][,];
         for (int i = 0; i < agents.Count; i++) {
@@ -239,5 +252,119 @@ public class PuzzleController : MonoBehaviour
         }
     }
 
-    // MoveAgent moved to IPlayerAgent
+    IEnumerator PlayModeLoop()
+    {
+        // Initial map
+        var targets = PlayerModel.MapDifficultyToTargets(initialDifficulty);
+        int pickups = (int)Mathf.Round(targets["Pickups"]);
+        int empty = (int)Mathf.Round(targets["EmptySpace"]);
+        char[,] currentMap = mapGenerator.GenerateMap(mapSize, pickups, empty);
+        int currentDifficulty = initialDifficulty;
+
+        if (resultPanel != null)
+        {
+            resultPanel.UpdateGAInfo($"Play Mode Active. Size: {mapSize}");
+        }
+
+        while (t < T)
+        {
+            // Cleanup
+            foreach (var obj in GameObject.FindObjectsOfType<GameObject>()) {
+                if (obj.name.StartsWith("PuzzleRoot") || obj.name.Contains("HumanPlayer")) {
+                    Destroy(obj);
+                }
+            }
+            generator.ClearCache();
+            
+            // Generate Visuals
+            generator.GenerateFromCharArray(currentMap, 0);
+            
+            // Spawn Player
+            GameObject playerObj;
+            if (humanPlayerPrefab != null) {
+                playerObj = Instantiate(humanPlayerPrefab);
+            } else {
+                playerObj = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                playerObj.name = "HumanPlayer";
+                playerObj.transform.localScale = new Vector3(0.8f, 0.8f, 0.8f);
+                // Add a simple material if possible, or just rely on default
+            }
+            
+            HumanPlayerController controller = playerObj.GetComponent<HumanPlayerController>();
+            if (controller == null) controller = playerObj.AddComponent<HumanPlayerController>();
+            
+            // Assign timer text from controller
+            controller.timerText = playerTimerText;
+
+            controller.Initialize(currentMap, generator, 0);
+            
+            Debug.Log($"Level {t+1} Started. Difficulty: {currentDifficulty}");
+
+            // Wait for completion
+            yield return new WaitUntil(() => controller.isLevelComplete);
+            
+            // Get Results
+            PlayerModel model = controller.GetResults();
+            
+            // Calculate Next Map
+            char[,] nextMap;
+            float gaTime = 0f;
+            float bestFitness = 0f;
+
+            if (enableAdaptiveGA)
+            {
+                int newDifficulty = model.SuggestDifficulty(currentDifficulty, timeOnlyMode);
+                Debug.Log($"Human Player difficulty changed: {currentDifficulty} -> {newDifficulty}");
+                currentDifficulty = newDifficulty;
+
+                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+                GAEngine ga = new GAEngine(model){
+                    populationSize = 300,
+                    generations = 10,
+                    crossoverRate = 0.8f,
+                    mapSize = mapSize
+                };
+
+                var weights = new Dictionary<string, float> {
+                    { "PathLength", pathLengthWeight },
+                    { "Corners", cornersWeight },
+                    { "EmptySpace", emptySpaceWeight },
+                    { "Pickups", pickupsWeight },
+                    { "OrthogonalPickups", orthogonalPickupsWeight }
+                };
+
+                nextMap = ga.Run(currentDifficulty, weights);
+                stopwatch.Stop();
+                gaTime = stopwatch.ElapsedMilliseconds;
+                bestFitness = ga.BestFitness;
+                Debug.Log($"GAEngine.Run 花費時間: {gaTime} ms");
+            }
+            else
+            {
+                var t = PlayerModel.MapDifficultyToTargets(currentDifficulty);
+                MapGenerator mapGen = new MapGenerator();
+                nextMap = mapGen.GenerateMap(mapSize, (int)Mathf.Round(t["Pickups"]), (int)Mathf.Round(t["EmptySpace"]));
+            }
+            
+            // Update UI
+            if (resultPanel != null)
+            {
+                string resultText = $"Iter: {t + 1}/{T}\n" +
+                                    $"Diff: {currentDifficulty}, Att: {model.attempts}\n" +
+                                    $"Back: {model.backtracks}, Near: {model.nearSolves}\n" +
+                                    $"Rst: {model.resets}\n" +
+                                    $"Time: {model.timeTaken:F1}, GA Time: {gaTime}ms\n" +
+                                    $"Best Fit: {bestFitness:F4}";
+                resultPanel.UpdateResult(3, resultText); // Use slot 3 for Player
+            }
+            
+            SaveMapToCSV(currentMap, model, "HumanPlayer", t+1, currentDifficulty, gaTime / 1000.0f, bestFitness);
+            
+            currentMap = nextMap;
+            t++;
+            
+            // Small delay before next level
+            yield return new WaitForSeconds(1f);
+        }
+    }
 }
