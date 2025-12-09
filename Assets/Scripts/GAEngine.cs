@@ -90,7 +90,7 @@ public class GAEngine
             if (Random.value < crossoverRate)
             {
                 var (c1, c2) = Crossover(p1, p2);
-                Mutate(c1); // 先交配再突變
+                Mutate(c1);
                 Mutate(c2);
                 nextGen.Add(c1);
                 if(nextGen.Count < populationSize) nextGen.Add(c2);
@@ -166,8 +166,6 @@ public class GAEngine
     // === 核心修改：Fitness 包含路徑修復 ===
     private float Fitness(char[,] map, Dictionary<string, float> targetMetrics, Dictionary<string, float> _weights)
     {
-        // 0. 檢查 P 和 D 數量是否一致 (Hard Constraint)
-        // 雖然 BFSRepairMap 可以處理不一致，但最終結果必須一致
         int pCount = 0;
         int dCount = 0;
         foreach (char c in map) {
@@ -175,36 +173,29 @@ public class GAEngine
             else if (c == 'D') dCount++;
         }
         
-        if (pCount != dCount) return 0f; // 數量不一致直接淘汰
+        if (pCount != dCount) return 0f;
 
-        // 1. 強制修復路徑 (這是 Hard Constraint)
-        // 這裡會重新畫 'X'。如果起點被圍死或無解，回傳 false。
         bool isSolvable = MapUtils.BFSRepairMap(map, mapSize);
 
         if (!isSolvable)
         {
-            return 0f; // 無解地圖，直接淘汰
+            return 0f;
         }
 
-        // 2. 計算特徵 (此時 map 上的 'X' 已經是最新的有效路徑)
         float pathLen = CalculatePathLength(map);
         float corners = CountCorners(map);
         float empty = CountEmptySpaces(map);
         float pickups = CountPickups(map);
         float ortho = CountOrthogonalPickups(map);
 
-        // 3. 準備權重
         var weights = new Dictionary<string, float> {
             { "PathLength", 1 }, { "Corners", 1 }, { "EmptySpace", 1 },
             { "Pickups", 1 }, { "OrthogonalPickups", 1 }
         };
         if (_weights != null) weights = _weights;
 
-        // 正規化權重
         float weightSum = weights.Values.Sum();
         
-        // 4. 計算分數 (使用歸一化公式：分數越高越好，滿分 1.0)
-        // 公式： Weight * ( 1 / (1 + |Target - Actual|) )
         float score = 0f;
 
         score += weights["PathLength"] * (1f / (1f + Mathf.Abs(targetMetrics["PathLength"] - pathLen)));
@@ -213,7 +204,7 @@ public class GAEngine
         score += weights["Pickups"] * (1f / (1f + Mathf.Abs(targetMetrics["Pickups"] - pickups)));
         score += weights["OrthogonalPickups"] * (1f / (1f + Mathf.Abs(targetMetrics["OrthogonalPickups"] - ortho)));
 
-        return score / weightSum; // 將總分縮放到 0~1 之間方便觀察
+        return score / weightSum;
     }
 
     private (char[,], char[,]) Crossover(char[,] p1, char[,] p2)
@@ -221,8 +212,6 @@ public class GAEngine
         int size = p1.GetLength(0);
         char[,] c1 = new char[size, size];
         char[,] c2 = new char[size, size];
-
-        // 單點交配 (Single Point Crossover based on Rows)
         int splitRow = Random.Range(1, size - 1);
 
         for (int y = 0; y < size; y++)
@@ -241,39 +230,33 @@ public class GAEngine
                 }
             }
         }
-        // 注意：交配後路徑肯定斷了，但下一輪 Fitness 會呼叫 BFSRepairMap 重接
         return (c1, c2);
     }
 
     private void Mutate(char[,] map)
     {
         int size = map.GetLength(0);
-        // 只在內部區域突變，保留最外圈圍牆
         for (int y = 1; y < size - 1; y++)
-        {
+{
             for (int x = 1; x < size - 1; x++)
             {
                 if (Random.value < mutationRate)
                 {
                     char current = map[y, x];
                     
-                    // 保護 Start 和 End 不被突變掉
-                    if (current == 'S' || current == 'E') continue;
+                    if (current == 'S' || current == 'E'){
+                        continue;
+                    }
 
-                    // 突變選項：空地、障礙、Pickup、Dropoff
-                    // === 重點：絕對不要生成 'X' (路徑)，路徑由 BFS 生成 ===
-                    // Modified: Increase probability of P and D
-                    // Old: { '#', '#', '#', 'O', 'P', 'D' }
-                    // New: { '#', '#', 'O', 'P', 'P', 'D', 'D' } -> Higher chance for P/D
-                    char[] tiles = { '#', '#', 'O', 'P', 'P', 'D', 'D' }; 
+                    char[] tiles = {
+                         '#', '#', 'O', 'P', 'P', 'D', 'D' 
+                    };
                     
-                    map[y, x] = tiles[Random.Range(0, tiles.Length)];
+                    int index = Random.Range(0, tiles.Length);
+                    map[y, x] = tiles[index];
                 }
             }
         }
-        
-        // 簡單的平衡機制：如果 P 和 D 數量落差太大，隨機修正
-        // 這邊可以保留你原本的邏輯，或者交給 Fitness 去評分淘汰
     }
 
     private char[,] CloneMap(char[,] map)
