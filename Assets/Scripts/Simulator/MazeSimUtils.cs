@@ -136,4 +136,76 @@ public static class MazeSimUtils {
         }
         return cnt;
     }
+
+    // A* shortest path
+    public static List<(int x, int y)> AStar(char[,] maze, (int x, int y) start, (int x, int y) goal, HashSet<(int, int)> visited = null, float visitedPenalty = 5f)
+    {
+        int rows = maze.GetLength(0);
+        int cols = maze.GetLength(1);
+
+        var openSet = new List<(int x, int y)>();
+        var cameFrom = new Dictionary<(int, int), (int, int)>();
+        var gScore = new Dictionary<(int, int), float>();
+        var fScore = new Dictionary<(int, int), float>();
+
+        openSet.Add(start);
+        gScore[start] = 0;
+        fScore[start] = Manhattan(start.x, start.y, goal.x, goal.y);
+
+        (int[] dx, int[] dy) = (new int[] { 1, -1, 0, 0 }, new int[] { 0, 0, 1, -1 });
+
+        while (openSet.Count > 0)
+        {
+            // Get node with lowest fScore
+            var current = openSet.OrderBy(n => fScore.ContainsKey(n) ? fScore[n] : float.MaxValue).First();
+
+            if (current == goal)
+            {
+                return ReconstructPath(cameFrom, current);
+            }
+
+            openSet.Remove(current);
+
+            for (int i = 0; i < 4; i++)
+            {
+                int nx = current.x + dx[i];
+                int ny = current.y + dy[i];
+
+                if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+                if (!IsWalkable(maze[ny, nx])) continue;
+
+                var neighbor = (nx, ny);
+                
+                float penalty = (visited != null && visited.Contains(neighbor)) ? visitedPenalty : 0f;
+                float tentativeGScore = gScore[current] + 1 + penalty;
+
+                if (!gScore.ContainsKey(neighbor) || tentativeGScore < gScore[neighbor])
+                {
+                    cameFrom[neighbor] = current;
+                    gScore[neighbor] = tentativeGScore;
+                    fScore[neighbor] = gScore[neighbor] + Manhattan(nx, ny, goal.x, goal.y);
+
+                    if (!openSet.Contains(neighbor))
+                    {
+                        openSet.Add(neighbor);
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static List<(int x, int y)> ReconstructPath(Dictionary<(int, int), (int, int)> cameFrom, (int x, int y) current)
+    {
+        var totalPath = new List<(int x, int y)>();
+        totalPath.Add(current);
+        while (cameFrom.ContainsKey(current))
+        {
+            current = cameFrom[current];
+            totalPath.Add(current);
+        }
+        totalPath.Reverse();
+        return totalPath;
+    }
 }

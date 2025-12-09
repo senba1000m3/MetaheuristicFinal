@@ -28,6 +28,7 @@ public class HumanPlayerController : MonoBehaviour
     
     private List<Vector2Int> pathHistory = new List<Vector2Int>();
     private List<Vector2Int> currentAttemptPath = new List<Vector2Int>();
+    private Dictionary<Vector2Int, Color> originalTileColors = new Dictionary<Vector2Int, Color>();
 
     private GameObject currentPuzzleRoot;
     [Tooltip("Assign a UI Text component here to display the timer")]
@@ -58,10 +59,17 @@ public class HumanPlayerController : MonoBehaviour
         }
         
         // Find the puzzle root if it exists
-        currentPuzzleRoot = GameObject.Find($"PuzzleRoot_{agentIndex}");
+        string rootName = GetPuzzleRootName(agentIndex);
+        currentPuzzleRoot = GameObject.Find(rootName);
 
         ResetState(true);
         startTime = Time.time;
+    }
+    
+    private string GetPuzzleRootName(int index)
+    {
+        string[] agentNames = {"Beginner", "Normal", "Expert"};
+        return "PuzzleRoot-" + ((index >= 0 && index < agentNames.Length) ? agentNames[index] : index.ToString());
     }
     
     private void ResetState(bool firstTime)
@@ -88,8 +96,12 @@ public class HumanPlayerController : MonoBehaviour
         {
             if (currentPuzzleRoot != null) Destroy(currentPuzzleRoot);
             generator.GenerateFromCharArray(map, agentIndex);
-            currentPuzzleRoot = GameObject.Find($"PuzzleRoot_{agentIndex}");
+            string rootName = GetPuzzleRootName(agentIndex);
+            currentPuzzleRoot = GameObject.Find(rootName);
         }
+        
+        originalTileColors.Clear();
+        MarkTileVisited(currentPos);
         
         CheckInteraction();
     }
@@ -117,11 +129,21 @@ public class HumanPlayerController : MonoBehaviour
             return;
         }
 
-        if (Input.GetKeyDown(KeyCode.Backspace))
+        if (Input.GetKeyDown(KeyCode.Z))
+        {
+            Debug.Log("Level Skipped!");
+            isLevelComplete = true;
+            return;
+        }
+
+        if (Input.GetKeyDown(KeyCode.Q))
         {
             if (currentAttemptPath.Count > 1)
             {
                 // Undo move
+                Vector2Int current = currentAttemptPath[currentAttemptPath.Count - 1];
+                UnmarkTileVisited(current);
+
                 currentAttemptPath.RemoveAt(currentAttemptPath.Count - 1);
                 Vector2Int prev = currentAttemptPath[currentAttemptPath.Count - 1];
                 currentPos = prev;
@@ -151,6 +173,7 @@ public class HumanPlayerController : MonoBehaviour
                 currentPos = next;
                 currentAttemptPath.Add(currentPos);
                 pathHistory.Add(currentPos);
+                MarkTileVisited(currentPos);
                 UpdatePosition();
                 CheckInteraction();
                 CheckWin();
@@ -164,6 +187,8 @@ public class HumanPlayerController : MonoBehaviour
         int cols = map.GetLength(1);
         if (pos.x < 0 || pos.x >= cols || pos.y < 0 || pos.y >= rows) return false;
         
+        if (currentAttemptPath.Contains(pos)) return false;
+
         char c = map[pos.y, pos.x];
         
         return MazeSimUtils.IsWalkable(c);
@@ -293,5 +318,43 @@ public class HumanPlayerController : MonoBehaviour
         PlayerModel model = new PlayerModel(attempts, backtracks, nearSolves, resets, totalTime);
         model.pathHistory = new List<Vector2Int>(pathHistory);
         return model;
+    }
+
+    private void MarkTileVisited(Vector2Int pos)
+    {
+        if (generator == null) return;
+        GameObject tile = generator.GetTileObject(agentIndex, pos.x, pos.y);
+        if (tile != null)
+        {
+            Renderer r = tile.GetComponentInChildren<Renderer>();
+            if (r != null)
+            {
+                if (!originalTileColors.ContainsKey(pos))
+                {
+                    originalTileColors[pos] = r.material.color;
+                }
+                r.material.color = Color.red;
+            }
+        }
+    }
+
+    private void UnmarkTileVisited(Vector2Int pos)
+    {
+        if (originalTileColors.ContainsKey(pos))
+        {
+            if (generator != null)
+            {
+                GameObject tile = generator.GetTileObject(agentIndex, pos.x, pos.y);
+                if (tile != null)
+                {
+                    Renderer r = tile.GetComponentInChildren<Renderer>();
+                    if (r != null)
+                    {
+                        r.material.color = originalTileColors[pos];
+                    }
+                }
+            }
+            originalTileColors.Remove(pos);
+        }
     }
 }

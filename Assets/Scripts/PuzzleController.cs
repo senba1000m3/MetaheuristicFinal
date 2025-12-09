@@ -49,7 +49,7 @@ public class PuzzleController : MonoBehaviour
     private MapGenerator mapGenerator;
 
     void Start()
-    {
+    {     
         savePath = Path.Combine(Application.dataPath, "map_records.csv");
 
 
@@ -157,7 +157,6 @@ public class PuzzleController : MonoBehaviour
                 }
                 else
                 {
-                    // 不使用 GA，直接生成相同難度的新地圖
                     var targets = PlayerModel.MapDifficultyToTargets(agentDifficulties[i]);
                     MapGenerator mapGen = new MapGenerator();
                     nextMap = mapGen.GenerateMap(mapSize, (int)Mathf.Round(targets["Pickups"]), (int)Mathf.Round(targets["EmptySpace"]));
@@ -169,8 +168,7 @@ public class PuzzleController : MonoBehaviour
                 {
                     string resultText = $"Iter: {t + 1}/{T}\n" +
                                         $"Diff: {agentDifficulties[i]}, Att: {model.attempts}\n" +
-                                        $"Back: {model.backtracks}, Near: {model.nearSolves}\n" +
-                                        $"Rst: {model.resets}\n" +
+                                        $"Back: {model.backtracks}, Rst: {model.resets}\n" +
                                         $"Time: {model.timeTaken:F1}, GA Time: {gaTime}ms\n" +
                                         $"Best Fit: {bestFitness:F4}";
                     resultPanel.UpdateResult(i, resultText);
@@ -277,7 +275,8 @@ public class PuzzleController : MonoBehaviour
             generator.ClearCache();
             
             // Generate Visuals
-            generator.GenerateFromCharArray(currentMap, 0);
+            // Use index 3 for Human Player to match the convention used in HumanPlayerController
+            generator.GenerateFromCharArray(currentMap, 3);
             
             // Spawn Player
             GameObject playerObj;
@@ -296,7 +295,8 @@ public class PuzzleController : MonoBehaviour
             // Assign timer text from controller
             controller.timerText = playerTimerText;
 
-            controller.Initialize(currentMap, generator, 0);
+            // Initialize with index 3
+            controller.Initialize(currentMap, generator, 3);
             
             Debug.Log($"Level {t+1} Started. Difficulty: {currentDifficulty}");
 

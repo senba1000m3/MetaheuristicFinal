@@ -6,15 +6,9 @@ public class ExpertAgent : IPlayerAgent
 {
     public override PlayerModel Simulate(char[,] maze)
     {
-        // Expert:
-        // - Optimal Pathing (BFS/A*)
-        // - Almost no errors
-        // - High efficiency
-
         int rows = maze.GetLength(0);
         int cols = maze.GetLength(1);
 
-        // Parse Map
         (int x, int y) start = (-1, -1);
         (int x, int y) end = (-1, -1);
         List<(int, int)> allPickups = new List<(int, int)>();
@@ -44,6 +38,8 @@ public class ExpertAgent : IPlayerAgent
             // Reset State
             (int x, int y) current = start;
             recordedPath.Add(new Vector2Int(current.x, current.y));
+            HashSet<(int, int)> visitedThisAttempt = new HashSet<(int, int)>();
+            visitedThisAttempt.Add(current);
 
             List<(int, int)> currentPickups = new List<(int, int)>(allPickups);
             List<(int, int)> currentDropoffs = new List<(int, int)>(allDropoffs);
@@ -72,6 +68,8 @@ public class ExpertAgent : IPlayerAgent
                         currentDropoffs.RemoveAt(dIndex);
                         hasPackage = false;
                         currentTarget = null; // Retarget
+                        // visitedThisAttempt.Clear();
+                        // backtracks += Random.Range(0, 1);
                         actionTaken = true;
                     }
                 }
@@ -83,6 +81,8 @@ public class ExpertAgent : IPlayerAgent
                         currentPickups.RemoveAt(pIndex);
                         hasPackage = true;
                         currentTarget = null; // Retarget
+                        // visitedThisAttempt.Clear();
+                        // backtracks += Random.Range(0, 1);
                         actionTaken = true;
                     }
                 }
@@ -95,6 +95,8 @@ public class ExpertAgent : IPlayerAgent
                         currentDropoffs.RemoveAt(dIndex);
                         hasPackage = false;
                         currentTarget = null; // Retarget
+                        // visitedThisAttempt.Clear();
+                        // backtracks += Random.Range(0, 1);
                         actionTaken = true;
                      }
                 }
@@ -106,8 +108,8 @@ public class ExpertAgent : IPlayerAgent
 
                 // Determine Target (Locking)
                 if (currentTarget == null) {
-                    if (!hasPackage && currentPickups.Count > 0) currentTarget = GetSmartNearest(maze, current, currentPickups, end);
-                    else if (hasPackage && currentDropoffs.Count > 0) currentTarget = GetSmartNearest(maze, current, currentDropoffs, end);
+                    if (!hasPackage && currentPickups.Count > 0) currentTarget = GetSmartNearest(maze, current, currentPickups, end, visitedThisAttempt);
+                    else if (hasPackage && currentDropoffs.Count > 0) currentTarget = GetSmartNearest(maze, current, currentDropoffs, end, visitedThisAttempt);
                     else currentTarget = end;
                 }
 
@@ -116,7 +118,7 @@ public class ExpertAgent : IPlayerAgent
                 // Adjust target to walkable neighbor if it's not end (End is walkable)
                 if (target != end) {
                     // Find the best reachable neighbor of the target
-                    var bestNeighbor = GetBestReachableNeighbor(maze, current, target);
+                    var bestNeighbor = GetBestReachableNeighbor(maze, current, target, visitedThisAttempt);
                     if (bestNeighbor.Item1 != -1) {
                         target = bestNeighbor;
                     } else {
@@ -127,11 +129,23 @@ public class ExpertAgent : IPlayerAgent
                 }
 
                 // Move Logic (Optimal)
-                List<(int, int)> path = MazeSimUtils.BFS(maze, current, target);
+                List<(int, int)> path = MazeSimUtils.AStar(maze, current, target, visitedThisAttempt, 100f);
                 
                 if (path != null && path.Count > 1)
                 {
-                    current = path[1];
+                    (int, int) next = path[1];
+                    
+                    // Only count as backtrack if reversing to the immediately previous tile
+                    // This avoids counting loops or crossings as backtracks, which the user considers "not turning back"
+                    if (recordedPath.Count >= 2) {
+                        Vector2Int prev = recordedPath[recordedPath.Count - 2];
+                        if (next.Item1 == prev.x && next.Item2 == prev.y) {
+                            backtracks++;
+                        }
+                    }
+
+                    current = next;
+                    visitedThisAttempt.Add(current);
                     recordedPath.Add(new Vector2Int(current.x, current.y));
                 }
                 else if (path != null && path.Count == 1)
@@ -163,25 +177,32 @@ public class ExpertAgent : IPlayerAgent
         return model;
     }
 
-    private (int, int) GetSmartNearest(char[,] maze, (int x, int y) from, List<(int, int)> targets, (int x, int y) endPoint)
+    private (int, int) GetSmartNearest(char[,] maze, (int x, int y) from, List<(int, int)> targets, (int x, int y) endPoint, HashSet<(int, int)> visited)
     {
         (int, int) best = targets[0];
-        int minSteps = int.MaxValue;
+        float minCost = float.MaxValue;
         
         foreach (var t in targets)
         {
             // Check all neighbors of the target to find the true shortest path
             var neighbors = MazeSimUtils.GetNeighbors(maze, t.Item1, t.Item2);
             foreach (var n in neighbors) {
-                var path = MazeSimUtils.BFS(maze, from, n);
+                var path = MazeSimUtils.AStar(maze, from, n, visited, 100f);
                 if (path != null)
                 {
-                    if (path.Count < minSteps)
+                    // Calculate cost including visited penalty
+                    float cost = path.Count;
+                    // Add extra cost for visited nodes in the path to prefer unvisited paths
+                    foreach(var p in path) {
+                        if(visited.Contains(p)) cost += 100f; 
+                    }
+
+                    if (cost < minCost)
                     {
-                        minSteps = path.Count;
+                        minCost = cost;
                         best = t;
                     }
-                    else if (path.Count == minSteps)
+                    else if (Mathf.Abs(cost - minCost) < 0.01f)
                     {
                         // Tie-breaker: Choose the one closer to the End point
                         float currentBestDist = MazeSimUtils.Manhattan(best.Item1, best.Item2, endPoint.x, endPoint.y);
@@ -196,24 +217,31 @@ public class ExpertAgent : IPlayerAgent
             }
         }
         
-        // If all unreachable (minSteps still Max), fallback to Manhattan
-        if (minSteps == int.MaxValue) {
+        // If all unreachable (minCost still Max), fallback to Manhattan
+        if (minCost == float.MaxValue) {
              return GetNearest(from, targets);
         }
         
         return best;
     }
 
-    private (int, int) GetBestReachableNeighbor(char[,] maze, (int x, int y) from, (int x, int y) targetNode) {
+    private (int, int) GetBestReachableNeighbor(char[,] maze, (int x, int y) from, (int x, int y) targetNode, HashSet<(int, int)> visited) {
         var neighbors = MazeSimUtils.GetNeighbors(maze, targetNode.Item1, targetNode.Item2);
         (int, int) best = (-1, -1);
-        int minLen = int.MaxValue;
+        float minCost = float.MaxValue;
 
         foreach(var n in neighbors) {
-            var path = MazeSimUtils.BFS(maze, from, n);
-            if(path != null && path.Count < minLen) {
-                minLen = path.Count;
-                best = n;
+            var path = MazeSimUtils.AStar(maze, from, n, visited, 100f);
+            if(path != null) {
+                float cost = path.Count;
+                foreach(var p in path) {
+                    if(visited.Contains(p)) cost += 100f;
+                }
+
+                if (cost < minCost) {
+                    minCost = cost;
+                    best = n;
+                }
             }
         }
         return best;

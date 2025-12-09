@@ -45,6 +45,16 @@ public class PuzzleGenerator : MonoBehaviour{
         }
     }
 
+    public GameObject GetTileObject(int agentIndex, int x, int y)
+    {
+        string key = $"{agentIndex}_{x}_{y}";
+        if (instantiatedObjects.ContainsKey(key))
+        {
+            return instantiatedObjects[key];
+        }
+        return null;
+    }
+
     public void GenerateFromCharArray(char[,] map, int index = 0){
         TileType[,] converted = ConvertCharMap(map);
         Generate(converted, index);
@@ -53,6 +63,14 @@ public class PuzzleGenerator : MonoBehaviour{
     public void Generate(TileType[,] map, int index = 0){
         string[] agentNames = {"Beginner", "Normal", "Expert"};
         string rootName = "PuzzleRoot-" + ((index >= 0 && index < agentNames.Length) ? agentNames[index] : index.ToString());
+        
+        // Ensure we clean up any existing root with the same name before creating a new one
+        GameObject existingRoot = GameObject.Find(rootName);
+        if (existingRoot != null)
+        {
+            DestroyImmediate(existingRoot);
+        }
+
         puzzleRoot = new GameObject(rootName).transform;
         int rows = map.GetLength(0);
         int cols = map.GetLength(1);

@@ -37,7 +37,7 @@ public class NormalAgent : IPlayerAgent
         
         int maxResets = 5; // Increased from 2
         int basePatience = 150;
-        float errorRate = 0.1f; // Adjusted to 0.1f (balanced)
+        float errorRate = 0f; // Adjusted to 0.1f (balanced)
 
         List<Vector2Int> recordedPath = new List<Vector2Int>();
 
@@ -45,6 +45,8 @@ public class NormalAgent : IPlayerAgent
         {
             (int x, int y) current = start;
             recordedPath.Add(new Vector2Int(current.x, current.y));
+            HashSet<(int, int)> visitedThisAttempt = new HashSet<(int, int)>();
+            visitedThisAttempt.Add(current);
 
             List<(int, int)> currentPickups = new List<(int, int)>(allPickups);
             List<(int, int)> currentDropoffs = new List<(int, int)>(allDropoffs);
@@ -53,6 +55,7 @@ public class NormalAgent : IPlayerAgent
             int steps = 0;
             bool solved = false;
             int patience = basePatience + (resets * 50); // Patience increases significantly
+            (int, int)? currentTarget = null; // Lock target to prevent looping
 
             while (steps < patience)
             {
@@ -69,6 +72,9 @@ public class NormalAgent : IPlayerAgent
                         currentDropoffs.RemoveAt(dIndex);
                         hasPackage = false;
                         steps = 0; // Reset patience
+                        visitedThisAttempt.Clear();
+                        backtracks += Random.Range(0, 2);
+                        currentTarget = null; // Retarget
                         actionTaken = true;
                     }
                 }
@@ -80,6 +86,9 @@ public class NormalAgent : IPlayerAgent
                         currentPickups.RemoveAt(pIndex);
                         hasPackage = true;
                         steps = 0; // Reset patience
+                        visitedThisAttempt.Clear();
+                        backtracks += Random.Range(0, 2);
+                        currentTarget = null; // Retarget
                         actionTaken = true;
                     }
                 }
@@ -91,6 +100,9 @@ public class NormalAgent : IPlayerAgent
                         currentDropoffs.RemoveAt(dIndex);
                         hasPackage = false;
                         steps = 0; // Reset patience
+                        visitedThisAttempt.Clear();
+                        backtracks += Random.Range(0, 2);
+                        currentTarget = null; // Retarget
                         actionTaken = true;
                     }
                 }
@@ -101,9 +113,13 @@ public class NormalAgent : IPlayerAgent
                 }
 
                 // Determine Target
-                (int, int) target = end;
-                if (!hasPackage && currentPickups.Count > 0) target = GetNearest(current, currentPickups);
-                else if (hasPackage && currentDropoffs.Count > 0) target = GetNearest(current, currentDropoffs);
+                if (currentTarget == null) {
+                    if (!hasPackage && currentPickups.Count > 0) currentTarget = GetNearest(current, currentPickups);
+                    else if (hasPackage && currentDropoffs.Count > 0) currentTarget = GetNearest(current, currentDropoffs);
+                    else currentTarget = end;
+                }
+                
+                (int, int) target = currentTarget.Value;
 
                 // Adjust target to walkable neighbor if it's not end (End is walkable)
                 if (target != end) {
@@ -134,7 +150,6 @@ public class NormalAgent : IPlayerAgent
                             var wrong = neighbors.Where(n => n != ideal).ToList();
                             if (wrong.Count > 0) {
                                 next = wrong[Random.Range(0, wrong.Count)];
-                                backtracks++; 
                             } else {
                                 next = ideal;
                             }
@@ -148,11 +163,14 @@ public class NormalAgent : IPlayerAgent
                 else
                 {
                     // Stuck or no path
+                    currentTarget = null; // Unlock target to try finding a new one
                     var neighbors = MazeSimUtils.GetNeighbors(maze, current.x, current.y);
                     if (neighbors.Count > 0) next = neighbors[Random.Range(0, neighbors.Count)];
                 }
 
+                if (visitedThisAttempt.Contains(next) && next != current) backtracks++;
                 current = next;
+                visitedThisAttempt.Add(current);
                 recordedPath.Add(new Vector2Int(current.x, current.y));
             }
 
