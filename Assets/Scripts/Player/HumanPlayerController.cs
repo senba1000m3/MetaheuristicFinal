@@ -412,7 +412,7 @@ public class HumanPlayerController : MonoBehaviour
                 {
                     originalTileColors[pos] = r.material.color;
                 }
-                r.material.color = Color.red;
+                r.material.color = Color.blue;
             }
         }
     }
