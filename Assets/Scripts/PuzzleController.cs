@@ -364,9 +364,10 @@ public class PuzzleController : MonoBehaviour
             GameObject playerObj;
             if (humanPlayerPrefab != null) {
                 playerObj = Instantiate(humanPlayerPrefab);
+                playerObj.name = "HumanPlayer_Instance";
             } else {
                 playerObj = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-                playerObj.name = "HumanPlayer";
+                playerObj.name = "HumanPlayer_Instance";
                 playerObj.transform.localScale = new Vector3(0.8f, 0.8f, 0.8f);
                 // Add a simple material if possible, or just rely on default
             }

@@ -29,10 +29,14 @@ public class HumanPlayerController : MonoBehaviour
     private List<Vector2Int> pathHistory = new List<Vector2Int>();
     private List<Vector2Int> currentAttemptPath = new List<Vector2Int>();
     private Dictionary<Vector2Int, Color> originalTileColors = new Dictionary<Vector2Int, Color>();
+    private Dictionary<int, List<(char type, Vector2Int pos)>> stepInteractions = new Dictionary<int, List<(char type, Vector2Int pos)>>();
 
     private GameObject currentPuzzleRoot;
     [Tooltip("Assign a UI Text component here to display the timer")]
     public Text timerText;
+
+    private Animator animator;
+    private GameObject packageIndicator;
 
     private void Awake()
     {
@@ -40,6 +44,7 @@ public class HumanPlayerController : MonoBehaviour
        {
            timerText = GameObject.Find("PlayerTimer").GetComponent<Text>();
        }
+       animator = GetComponent<Animator>();
     }
 
     public void Initialize(char[,] map, PuzzleGenerator generator, int agentIndex)
@@ -80,6 +85,7 @@ public class HumanPlayerController : MonoBehaviour
         usedDropoffs.Clear();
         currentAttemptPath.Clear();
         currentAttemptPath.Add(currentPos);
+        stepInteractions.Clear();
         
         if (!firstTime) {
             pathHistory.Add(currentPos); // Add reset point to history
@@ -104,6 +110,8 @@ public class HumanPlayerController : MonoBehaviour
         MarkTileVisited(currentPos);
         
         CheckInteraction();
+
+        if (animator != null) animator.SetBool("ifStart", false);
     }
 
     void Update()
@@ -140,6 +148,35 @@ public class HumanPlayerController : MonoBehaviour
         {
             if (currentAttemptPath.Count > 1)
             {
+                // Undo interactions first
+                int currentStepIndex = currentAttemptPath.Count - 1;
+                if (stepInteractions.ContainsKey(currentStepIndex)) {
+                    var interactions = stepInteractions[currentStepIndex];
+                    // Reverse order
+                    for (int i = interactions.Count - 1; i >= 0; i--) {
+                        var (type, pos) = interactions[i];
+                        if (type == 'P') {
+                            // Undo Pickup
+                            hasPackage = false;
+                            usedPickups.Remove(pos);
+                            // Restore visual
+                            float xOffset = agentIndex * (map.GetLength(1) + 2) * generator.cellSize;
+                            Vector3 pPos = new Vector3(pos.x * generator.cellSize + xOffset, 0f, -pos.y * generator.cellSize);
+                            generator.RestoreObjectAt(agentIndex, pos.x, pos.y, TileType.Pickup, pPos, Quaternion.identity);
+                        } else if (type == 'D') {
+                            // Undo Dropoff
+                            hasPackage = true;
+                            usedDropoffs.Remove(pos);
+                            // Restore visual
+                            float xOffset = agentIndex * (map.GetLength(1) + 2) * generator.cellSize;
+                            Vector3 pPos = new Vector3(pos.x * generator.cellSize + xOffset, 0f, -pos.y * generator.cellSize);
+                            generator.RestoreObjectAt(agentIndex, pos.x, pos.y, TileType.Dropoff, pPos, Quaternion.identity);
+                        }
+                    }
+                    stepInteractions.Remove(currentStepIndex);
+                    UpdateVisuals();
+                }
+
                 // Undo move
                 Vector2Int current = currentAttemptPath[currentAttemptPath.Count - 1];
                 UnmarkTileVisited(current);
@@ -153,7 +190,6 @@ public class HumanPlayerController : MonoBehaviour
                 
                 backtracks++;
                 UpdatePosition();
-                // Note: Undo does not restore packages.
             }
             return;
         }
@@ -167,6 +203,14 @@ public class HumanPlayerController : MonoBehaviour
 
         if (move != Vector2Int.zero)
         {
+            // Rotate character to face movement direction
+            Vector3 lookDir = new Vector3(move.x, 0, -move.y);
+            if (lookDir != Vector3.zero) {
+                transform.rotation = Quaternion.LookRotation(lookDir);
+            }
+            // Set animator ifStart to false when first move from start
+            if (animator != null && currentPos == startPos) animator.SetBool("ifStart", false);
+
             Vector2Int next = currentPos + move;
             if (IsValidMove(next))
             {
@@ -207,6 +251,29 @@ public class HumanPlayerController : MonoBehaviour
         {
             renderer.material.color = hasPackage ? Color.yellow : Color.blue;
         }
+        // Handle package indicator
+        if (hasPackage)
+        {
+            if (packageIndicator == null)
+            {
+                packageIndicator = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                packageIndicator.transform.SetParent(transform);
+                packageIndicator.transform.localScale = new Vector3(0.3f, 0.3f, 0.3f);
+                packageIndicator.transform.localPosition = new Vector3(0, 0.4f, 0.45f);
+                var indRenderer = packageIndicator.GetComponent<Renderer>();
+                if (indRenderer != null) indRenderer.material.color = Color.green;
+            }
+        }
+        else
+        {
+            if (packageIndicator != null)
+            {
+                Destroy(packageIndicator);
+                packageIndicator = null;
+            }
+        }
+
+        // if (animator != null) animator.SetBool("ifStart", !hasPackage);
     }
 
     private void CheckInteraction()
@@ -218,6 +285,10 @@ public class HumanPlayerController : MonoBehaviour
         int[] dy = {1, -1, 0, 0};
         
         bool actionTaken = false;
+        int currentStepIndex = currentAttemptPath.Count - 1;
+        if (!stepInteractions.ContainsKey(currentStepIndex)) {
+            stepInteractions[currentStepIndex] = new List<(char, Vector2Int)>();
+        }
 
         // 1. Try Drop
         if (hasPackage) {
@@ -231,6 +302,7 @@ public class HumanPlayerController : MonoBehaviour
                         hasPackage = false;
                         usedDropoffs.Add(target);
                         generator.RemoveObjectAt(agentIndex, nx, ny);
+                        stepInteractions[currentStepIndex].Add(('D', target));
                         actionTaken = true;
                         break; 
                     }
@@ -250,6 +322,7 @@ public class HumanPlayerController : MonoBehaviour
                         hasPackage = true;
                         usedPickups.Add(target);
                         generator.RemoveObjectAt(agentIndex, nx, ny);
+                        stepInteractions[currentStepIndex].Add(('P', target));
                         actionTaken = true;
                         break; 
                     }
@@ -269,6 +342,7 @@ public class HumanPlayerController : MonoBehaviour
                         hasPackage = false;
                         usedDropoffs.Add(target);
                         generator.RemoveObjectAt(agentIndex, nx, ny);
+                        stepInteractions[currentStepIndex].Add(('D', target));
                         actionTaken = true;
                         break;
                     }
@@ -291,6 +365,7 @@ public class HumanPlayerController : MonoBehaviour
             {
                 isLevelComplete = true;
                 Debug.Log("Level Complete!");
+                if (animator != null) animator.SetBool("ifStart", true);
             }
         }
     }
@@ -323,6 +398,10 @@ public class HumanPlayerController : MonoBehaviour
     private void MarkTileVisited(Vector2Int pos)
     {
         if (generator == null) return;
+        
+        // Don't overwrite the Start tile color
+        if (pos == startPos) return;
+
         GameObject tile = generator.GetTileObject(agentIndex, pos.x, pos.y);
         if (tile != null)
         {

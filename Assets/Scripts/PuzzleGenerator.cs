@@ -138,6 +138,22 @@ public class PuzzleGenerator : MonoBehaviour{
         return result;
     }
 
+    public void RestoreObjectAt(int agentIndex, int x, int y, TileType type, Vector3 position, Quaternion rotation) {
+        GameObject prefab = GetPrefab(type);
+        if (prefab != null) {
+             // Find root
+            string[] agentNames = {"Beginner", "Normal", "Expert"};
+            string rootName = "PuzzleRoot-" + ((agentIndex >= 0 && agentIndex < agentNames.Length) ? agentNames[agentIndex] : agentIndex.ToString());
+            GameObject rootObj = GameObject.Find(rootName);
+            Transform parent = rootObj != null ? rootObj.transform : null;
+
+            GameObject instance = Instantiate(prefab, position, rotation, parent);
+            string key = $"{agentIndex}_{x}_{y}";
+            if (instantiatedObjects.ContainsKey(key)) instantiatedObjects.Remove(key);
+            instantiatedObjects[key] = instance;
+        }
+    }
+
     private GameObject GetPrefab(TileType type){
         switch(type){
             case TileType.Empty: return emptyPrefab;
