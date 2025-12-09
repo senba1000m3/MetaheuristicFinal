@@ -8,13 +8,19 @@ public class GAEngine
     public int generations = 10;
     public int mapSize = 10;
     public float crossoverRate = 0.8f;
-    public float mutationRate = 0.3f; //稍微提高突變率
+    public float mutationRate = 0.3f;
     public float BestFitness { get; private set; }
 
     private List<char[,]> population;
     private PlayerModel playerModel;
     private MapGenerator mapGenerator;
     private Dictionary<string, float> targetMetrics;
+
+    private char[,] bestMap;
+    private float bestFit;
+    
+    // Store the sorted population of the current generation for visualization
+    public List<char[,]> TopSpecimens { get; private set; } = new List<char[,]>();
 
     public GAEngine(PlayerModel player)
     {
@@ -23,75 +29,109 @@ public class GAEngine
         population = new List<char[,]>();
     }
 
+    public void Initialize(int difficulty)
+    {
+        targetMetrics = PlayerModel.MapDifficultyToTargets(difficulty);
+        InitializePopulation();
+        bestMap = null;
+        bestFit = -1f;
+        BestFitness = 0f;
+    }
+
+    public void Step(Dictionary<string, float> _weights = null)
+    {
+        float maxFit = -1f;
+        char[,] bestInGen = null;
+        
+        // Store fitness for sorting
+        List<(char[,] map, float fitness)> scoredPopulation = new List<(char[,] map, float fitness)>();
+
+        // --- 評估適應度 ---
+        for(int i = 0; i < population.Count; i++)
+        {
+            // 注意：Fitness 內部會執行 BFSRepairMap 修改 population[i] 的內容
+            float f = Fitness(population[i], targetMetrics, _weights);
+            scoredPopulation.Add((population[i], f));
+            
+            if (f > maxFit)
+            {
+                maxFit = f;
+                bestInGen = population[i];
+            }
+        }
+        
+        // Sort by fitness descending and store top specimens for visualization
+        TopSpecimens = scoredPopulation.OrderByDescending(x => x.fitness)
+                                     .Select(x => x.map)
+                                     .Take(25)
+                                     .ToList();
+
+        // Debug.Log($"GA Gen Step: Best Score = {maxFit:F4}");
+
+        if (maxFit > bestFit && bestInGen != null)
+        {
+            bestFit = maxFit;
+            BestFitness = bestFit;
+            bestMap = CloneMap(bestInGen);
+        }
+
+        // --- 產生下一代 ---
+        List<char[,]> nextGen = new List<char[,]>();
+        
+        // 菁英保留策略 (Elitism)：保留這一代最好的直接進入下一代
+        if(bestInGen != null) nextGen.Add(CloneMap(bestInGen));
+
+        // 輪盤選擇法或隨機選擇進行交配
+        while (nextGen.Count < populationSize)
+        {
+            char[,] p1 = population[Random.Range(0, population.Count)];
+            char[,] p2 = population[Random.Range(0, population.Count)];
+
+            if (Random.value < crossoverRate)
+            {
+                var (c1, c2) = Crossover(p1, p2);
+                Mutate(c1); // 先交配再突變
+                Mutate(c2);
+                nextGen.Add(c1);
+                if(nextGen.Count < populationSize) nextGen.Add(c2);
+            }
+            else
+            {
+                char[,] c1 = CloneMap(p1);
+                Mutate(c1);
+                nextGen.Add(c1);
+            }
+        }
+        
+        // Repair all maps in nextGen before setting them as population
+        // This ensures that when we visualize them, they look correct (connected paths)
+        foreach(var map in nextGen) {
+            MapUtils.BFSRepairMap(map, mapSize);
+        }
+
+        population = nextGen;
+    }
+
+    public List<char[,]> GetPopulation()
+    {
+        return population;
+    }
+
+    public char[,] GetBestMap()
+    {
+        return bestMap;
+    }
+
     public char[,] Run(int difficulty, Dictionary<string, float> _weights = null)
     {
-        // 取得該難度下的目標數值
-        targetMetrics = PlayerModel.MapDifficultyToTargets(difficulty);
-
-        InitializePopulation();
-
-        char[,] bestMap = null;
-        float bestFit = -1f;
-        BestFitness = 0f;
+        Initialize(difficulty);
 
         for (int gen = 0; gen < generations; gen++)
         {
-            float maxFit = -1f;
-            char[,] bestInGen = null;
-
-            // --- 評估適應度 ---
-            for(int i = 0; i < population.Count; i++)
-            {
-                // 注意：Fitness 內部會執行 BFSRepairMap 修改 population[i] 的內容
-                float f = Fitness(population[i], targetMetrics, _weights);
-                
-                if (f > maxFit)
-                {
-                    maxFit = f;
-                    bestInGen = population[i];
-                }
-            }
-
-            // Debug.Log($"GA Gen {gen}: Best Score = {maxFit:F4}");
+            Step(_weights);
             if (gen % 1 == 0) {
-                 Debug.Log($"[GAEngine] Gen {gen}: Best Score = {maxFit:F4}");
+                 Debug.Log($"[GAEngine] Gen {gen}: Best Score = {bestFit:F4}");
             }
-
-            if (maxFit > bestFit && bestInGen != null)
-            {
-                bestFit = maxFit;
-                BestFitness = bestFit;
-                bestMap = CloneMap(bestInGen);
-            }
-
-            // --- 產生下一代 ---
-            List<char[,]> nextGen = new List<char[,]>();
-            
-            // 菁英保留策略 (Elitism)：保留這一代最好的直接進入下一代
-            if(bestInGen != null) nextGen.Add(CloneMap(bestInGen));
-
-            // 輪盤選擇法或隨機選擇進行交配
-            while (nextGen.Count < populationSize)
-            {
-                char[,] p1 = population[Random.Range(0, population.Count)];
-                char[,] p2 = population[Random.Range(0, population.Count)];
-
-                if (Random.value < crossoverRate)
-                {
-                    var (c1, c2) = Crossover(p1, p2);
-                    Mutate(c1); // 先交配再突變
-                    Mutate(c2);
-                    nextGen.Add(c1);
-                    if(nextGen.Count < populationSize) nextGen.Add(c2);
-                }
-                else
-                {
-                    char[,] c1 = CloneMap(p1);
-                    Mutate(c1);
-                    nextGen.Add(c1);
-                }
-            }
-            population = nextGen;
         }
 
         // 最終保險：確保回傳的地圖是可解的

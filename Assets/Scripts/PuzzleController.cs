@@ -4,6 +4,12 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 
+public enum AgentType{
+    BeginnerAgent,
+    NormalAgent,
+    ExpertAgent
+}
+
 public class PuzzleController : MonoBehaviour
     
 {
@@ -25,6 +31,9 @@ public class PuzzleController : MonoBehaviour
 
     [Tooltip("是否啟用玩家遊玩模式 (無視 Agents)")]
     public bool playMode = false;
+    [Tooltip("是否啟用 GA 視覺化演示 (僅 Expert Agent)")]
+    public bool showGAViz = false;
+    public AgentType targetAgentNameForViz;
     public GameObject humanPlayerPrefab;
     [Tooltip("指定場景中的 UI Text 物件來顯示計時器")]
     public Text playerTimerText;
@@ -47,6 +56,7 @@ public class PuzzleController : MonoBehaviour
     private int t = 0;
     private int[] agentDifficulties;
     private MapGenerator mapGenerator;
+    private List<GameObject> gaVizObjects = new List<GameObject>();
 
     void Start()
     {     
@@ -134,10 +144,18 @@ public class PuzzleController : MonoBehaviour
                     agentDifficulties[i] = newDifficulty;
 
                     var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+                    
+                    // Define mutation rates for different agents
+                    float mRate = 0.3f; // Default
+                    if (agents[i] is BeginnerAgent) mRate = 0.01f;
+                    else if (agents[i] is NormalAgent) mRate = 0.1f;
+                    else if (agents[i] is ExpertAgent) mRate = 0.3f;
+
                     GAEngine ga = new GAEngine(model){
                         populationSize = 300,
                         generations = 10,
                         crossoverRate = 0.8f,
+                        mutationRate = mRate,
                         mapSize = mapSize
                     };
 
@@ -149,10 +167,28 @@ public class PuzzleController : MonoBehaviour
                         { "OrthogonalPickups", orthogonalPickupsWeight }
                     };
 
-                    nextMap = ga.Run(agentDifficulties[i], weights);
+                    if (showGAViz && agents[i].GetType().Name == targetAgentNameForViz.ToString())
+                    {
+                        ga.Initialize(agentDifficulties[i]);
+                        for (int gen = 0; gen < ga.generations; gen++)
+                        {
+                            ga.Step(weights);
+                            // Visualize the top specimens from the current generation (sorted by fitness)
+                            VisualizeGAPopulation(ga.TopSpecimens);
+                            yield return new WaitForSeconds(0.1f);
+                        }
+                        nextMap = ga.GetBestMap();
+                        bestFitness = ga.BestFitness;
+                    }
+                    else
+                    {
+                        nextMap = ga.Run(agentDifficulties[i], weights);
+                        bestFitness = ga.BestFitness;
+                    }
+
                     stopwatch.Stop();
                     gaTime = stopwatch.ElapsedMilliseconds;
-                    bestFitness = ga.BestFitness;
+                    // bestFitness = ga.BestFitness;
                     Debug.Log($"GAEngine.Run 花費時間: {gaTime} ms");
                 }
                 else
@@ -206,6 +242,52 @@ public class PuzzleController : MonoBehaviour
         }
     }
 
+
+    void VisualizeGAPopulation(List<char[,]> population)
+    {
+        // Clear previous visualization
+        foreach (var obj in gaVizObjects)
+        {
+            if (obj != null) Destroy(obj);
+        }
+        gaVizObjects.Clear();
+
+        // Settings for grid layout
+        int showCount = Mathf.Min(population.Count, 25); // Only show top 25
+        int cols = 5; // 5x5 grid
+        float scale = 0.6f; // Larger scale since we show fewer
+        float gap = 1f; // Gap between maps
+        float mapWorldSize = mapSize * generator.cellSize * scale;
+        
+        // Start position offset (to the right of the main maps)
+        // Assuming main maps take up some space, let's put this far to the right
+        Vector3 startOrigin = new Vector3(60, 0, 0); 
+
+        for (int j = 0; j < showCount; j++)
+        {
+            int vizIndex = 10000 + j; // Unique index to avoid conflict with main maps
+            
+            // Generate the map using the existing generator
+            // Note: This might be slow for 300 maps. 
+            // We rely on generator.GenerateFromCharArray creating a GameObject named "PuzzleRoot-{vizIndex}"
+            generator.GenerateFromCharArray(population[j], vizIndex, false);
+            
+            GameObject root = GameObject.Find($"PuzzleRoot-{vizIndex}");
+            if (root != null)
+            {
+                root.transform.localScale = new Vector3(scale, scale, scale);
+                
+                int row = j / cols;
+                int col = j % cols;
+                
+                // Arrange in a grid
+                Vector3 pos = startOrigin + new Vector3(col * (mapWorldSize + gap), 0, -row * (mapWorldSize + gap));
+                root.transform.position = pos;
+                
+                gaVizObjects.Add(root);
+            }
+        }
+    }
 
     void SaveMapToCSV(char[,] map, PlayerModel player, string tag, int iteration = -1, int difficulty = -1, float gaTime = 0f, float bestFit = 0f)
     {

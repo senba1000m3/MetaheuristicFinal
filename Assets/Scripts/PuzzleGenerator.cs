@@ -55,12 +55,12 @@ public class PuzzleGenerator : MonoBehaviour{
         return null;
     }
 
-    public void GenerateFromCharArray(char[,] map, int index = 0){
+    public void GenerateFromCharArray(char[,] map, int index = 0, bool useAutoOffset = true){
         TileType[,] converted = ConvertCharMap(map);
-        Generate(converted, index);
+        Generate(converted, index, useAutoOffset);
     }
 
-    public void Generate(TileType[,] map, int index = 0){
+    public void Generate(TileType[,] map, int index = 0, bool useAutoOffset = true){
         string[] agentNames = {"Beginner", "Normal", "Expert"};
         string rootName = "PuzzleRoot-" + ((index >= 0 && index < agentNames.Length) ? agentNames[index] : index.ToString());
         
@@ -74,7 +74,7 @@ public class PuzzleGenerator : MonoBehaviour{
         puzzleRoot = new GameObject(rootName).transform;
         int rows = map.GetLength(0);
         int cols = map.GetLength(1);
-        float xOffset = index * (cols+2) * cellSize;
+        float xOffset = useAutoOffset ? index * (cols+2) * cellSize : 0f;
         
         for(int y = 0; y < rows; y++){
             for(int x = 0; x < cols; x++){
